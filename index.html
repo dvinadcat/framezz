@@ -924,18 +924,23 @@ function decodeGif(buffer) {
       pCtx.clearRect(0, 0, w, h);
       pCtx.drawImage(work, 0, 0);
 
-      // Paint pixels
-      const img = wCtx.createImageData(fw, fh);
+      // Paint pixels via temp canvas so transparent pixels composite
+      // correctly (putImageData would overwrite with alpha=0 = black)
+      const tmp = document.createElement('canvas');
+      tmp.width = fw; tmp.height = fh;
+      const tCtx = tmp.getContext('2d');
+      const img = tCtx.createImageData(fw, fh);
       for (let i = 0; i < pixels.length; i++) {
         const p = pixels[i];
-        if (p === transparent) continue;
+        if (p === transparent) continue; // leave alpha=0 in img
         const ci = p * 3;
         img.data[i*4]   = ct[ci];
         img.data[i*4+1] = ct[ci+1];
         img.data[i*4+2] = ct[ci+2];
         img.data[i*4+3] = 255;
       }
-      wCtx.putImageData(img, fx, fy);
+      tCtx.putImageData(img, 0, 0);
+      wCtx.drawImage(tmp, fx, fy); // source-over: transparent pixels don't erase bg
 
       // Snapshot the full composited frame
       const snap = document.createElement('canvas');
