@@ -978,7 +978,7 @@ function lzwDecode(minSize, data, count) {
     for (const p of entry) out.push(p);
     if (prev && table.length < 4096) {
       table.push([...prev, entry[0]]);
-      if (table.length === (1 << codeSize) + 1 && codeSize < 12) { codeSize++; mask = (1 << codeSize) - 1; }
+      if (table.length === (1 << codeSize) && codeSize < 12) { codeSize++; mask = (1 << codeSize) - 1; }
     }
     prev = entry;
   }
