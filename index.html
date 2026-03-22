@@ -541,10 +541,8 @@ async function initGif(file) {
     videoEl.style.display = 'none';
     canvasEl.style.display = 'block';
 
-    // clear canvas
-    state.gifCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
-
-    renderGifFrame(0);
+    state.currentFrame = -1; // sentinel: no previous frame yet
+    seekGifToFrame(0);
     updateUI();
   } catch (err) {
     showToast('Failed to decode GIF: ' + err.message);
@@ -554,34 +552,76 @@ async function initGif(file) {
   }
 }
 
-function renderGifFrame(index) {
-  state.currentFrame = index;
-  const frame = state.gifFrames[index];
-  const ctx = state.gifCtx;
-  const disposal = frame.disposalType;
+// Apply the disposal method of `frame` to prepare the canvas for the next frame.
+// disposalType 2 = restore area to background (clear); 3 = restore to previous snapshot.
+// disposalType 0/1 = leave canvas as-is (do nothing).
+function applyGifDisposal(ctx, frame) {
+  switch (frame.disposalType) {
+    case 2:
+      ctx.clearRect(frame.dims.left, frame.dims.top, frame.dims.width, frame.dims.height);
+      break;
+    case 3:
+      // Restore to state saved before this frame was drawn
+      ctx.clearRect(0, 0, state.gifWidth, state.gifHeight);
+      ctx.drawImage(state.offscreenCanvas, 0, 0);
+      break;
+    // 0, 1: do nothing
+  }
+}
 
-  // Save snapshot before drawing (for disposal 3 of next frame)
-  if (disposal === 3) {
+// Render the next sequential frame during forward playback.
+// Assumes the canvas is already in the correct composited state from the previous frame.
+function renderGifFrame(index) {
+  const ctx = state.gifCtx;
+  const prevFrame = state.currentFrame >= 0 ? state.gifFrames[state.currentFrame] : null;
+
+  // Save canvas snapshot BEFORE applying the previous frame's disposal,
+  // so disposal type 3 on the NEXT frame can restore to this moment.
+  if (prevFrame && prevFrame.disposalType === 3) {
     state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
     state.offscreenCtx.drawImage(canvasEl, 0, 0);
   }
 
-  // Apply disposal for this frame
-  if (disposal === 2) {
-    // Restore to background color (treat as transparent/clear)
-    ctx.clearRect(frame.dims.left, frame.dims.top, frame.dims.width, frame.dims.height);
-  } else if (disposal === 3) {
-    // Restore to previous — draw offscreen snapshot
-    ctx.clearRect(0, 0, state.gifWidth, state.gifHeight);
-    ctx.drawImage(state.offscreenCanvas, 0, 0);
-  }
-  // disposal 0/1: do not clear; leave canvas as-is
+  // Apply the previous frame's disposal to prepare canvas for current frame
+  if (prevFrame) applyGifDisposal(ctx, prevFrame);
 
-  // Draw the frame patch
+  // Draw current frame patch
+  const frame = state.gifFrames[index];
   const imageData = ctx.createImageData(frame.dims.width, frame.dims.height);
   imageData.data.set(frame.patch);
   ctx.putImageData(imageData, frame.dims.left, frame.dims.top);
 
+  state.currentFrame = index;
+  updateUI();
+}
+
+// Seek to an arbitrary frame by replaying from frame 0.
+// Required for backward seeks and progress bar seeks because GIF compositing is cumulative.
+function seekGifToFrame(index) {
+  const ctx = state.gifCtx;
+  ctx.clearRect(0, 0, state.gifWidth, state.gifHeight);
+  state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
+
+  // Replay frames 0..index
+  let savedCtx = null;
+  for (let i = 0; i <= index; i++) {
+    const frame = state.gifFrames[i];
+    const prevFrame = i > 0 ? state.gifFrames[i - 1] : null;
+
+    // Save snapshot before applying disposal (for type 3 support)
+    if (prevFrame && prevFrame.disposalType === 3) {
+      state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
+      state.offscreenCtx.drawImage(canvasEl, 0, 0);
+    }
+
+    if (prevFrame) applyGifDisposal(ctx, prevFrame);
+
+    const imageData = ctx.createImageData(frame.dims.width, frame.dims.height);
+    imageData.data.set(frame.patch);
+    ctx.putImageData(imageData, frame.dims.left, frame.dims.top);
+  }
+
+  state.currentFrame = index;
   updateUI();
 }
 
@@ -668,7 +708,7 @@ playBtn.addEventListener('click', () => {
     // if at end, restart from beginning
     if (state.currentFrame >= state.totalFrames - 1) {
       if (state.mode === 'video') seekVideoFrame(0);
-      else renderGifFrame(0);
+      else seekGifToFrame(0);
     }
     startPlayback();
   }
@@ -679,14 +719,14 @@ firstBtn.addEventListener('click', () => {
   if (!state.mode) return;
   stopPlayback();
   if (state.mode === 'video') seekVideoFrame(0);
-  else renderGifFrame(0);
+  else seekGifToFrame(0);
 });
 
 lastBtn.addEventListener('click', () => {
   if (!state.mode) return;
   stopPlayback();
   if (state.mode === 'video') seekVideoFrame(state.totalFrames - 1);
-  else renderGifFrame(state.totalFrames - 1);
+  else seekGifToFrame(state.totalFrames - 1);
 });
 
 prevBtn.addEventListener('click', () => {
@@ -694,7 +734,7 @@ prevBtn.addEventListener('click', () => {
   stopPlayback();
   const f = Math.max(0, state.currentFrame - 1);
   if (state.mode === 'video') seekVideoFrame(f);
-  else renderGifFrame(f);
+  else seekGifToFrame(f); // must replay from 0 — GIF compositing is cumulative
 });
 
 nextBtn.addEventListener('click', () => {
@@ -702,7 +742,7 @@ nextBtn.addEventListener('click', () => {
   stopPlayback();
   const f = Math.min(state.totalFrames - 1, state.currentFrame + 1);
   if (state.mode === 'video') seekVideoFrame(f);
-  else renderGifFrame(f);
+  else renderGifFrame(f); // forward step: fast path, canvas already in correct state
 });
 
 // Progress bar seek
@@ -713,7 +753,7 @@ progressBar.addEventListener('input', () => {
   if (!state.mode) return;
   const f = parseInt(progressBar.value);
   if (state.mode === 'video') seekVideoFrame(f);
-  else renderGifFrame(f);
+  else seekGifToFrame(f); // arbitrary seek always replays from 0
 });
 progressBar.addEventListener('change', () => { isSeeking = false; });
 
