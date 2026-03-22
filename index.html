@@ -106,6 +106,28 @@ body {
 }
 #file-input { display: none; }
 
+.url-row {
+  display: flex;
+  gap: 6px;
+  width: 80%;
+  max-width: 480px;
+  margin-top: 6px;
+}
+.url-input {
+  flex: 1;
+  background: #0d0d0d;
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.68rem;
+  padding: 7px 10px;
+  outline: none;
+  letter-spacing: 0.04em;
+  min-width: 0;
+}
+.url-input:focus { border-color: var(--accent); }
+.url-input::placeholder { color: #333; }
+
 /* ── Player ── */
 #player-wrapper {
   display: none;
@@ -437,6 +459,10 @@ input[type=range]::-moz-range-thumb {
     <div class="drop-icon">[ ]</div>
     <div class="drop-label">Drop file here</div>
     <div class="drop-sub">MP4 / GIF / WEBM / MOV · or click to browse</div>
+    <div class="url-row">
+      <input class="url-input" type="text" id="url-input" placeholder="or paste a url..." autocomplete="off" spellcheck="false">
+      <button class="btn" id="url-load-btn">LOAD</button>
+    </div>
     <input type="file" id="file-input" accept="video/*,.gif,image/gif">
   </div>
 
@@ -565,6 +591,8 @@ const fileDisplay   = document.getElementById('file-display');
 const gifNotice     = document.getElementById('gif-notice');
 const loading       = document.getElementById('loading');
 const toast         = document.getElementById('toast');
+const urlInput      = document.getElementById('url-input');
+const urlLoadBtn    = document.getElementById('url-load-btn');
 
 // ─── State ────────────────────────────────────────────────────────────────
 const state = {
@@ -717,23 +745,21 @@ function scheduleGifFrame() {
 }
 
 // ─── Video ─────────────────────────────────────────────────────────────────
-function initVideo(file) {
+function initVideo(src, name) {
   state.mode = 'video';
   state.fps = 30;
 
-  if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
-  state.objectUrl = URL.createObjectURL(file);
-
-  videoEl.src = state.objectUrl;
+  videoEl.src = src;
   videoEl.load();
   videoEl.style.display = 'block';
   canvasEl.style.display = 'none';
 
-  typeBadge.textContent = file.name.split('.').pop().toUpperCase();
+  const ext = name.split('.').pop().split('?')[0].toUpperCase().slice(0, 4);
+  typeBadge.textContent = ext || 'VID';
   gifNotice.classList.remove('show');
   resDisplay.textContent = '—';
   fpsDisplay.textContent = '~30';
-  fileDisplay.textContent = file.name;
+  fileDisplay.textContent = name;
 
   videoEl.addEventListener('loadedmetadata', () => {
     state.totalFrames = Math.max(1, Math.round(videoEl.duration * state.fps));
@@ -779,45 +805,45 @@ function seekVideoFrame(f) {
 }
 
 // ─── GIF ───────────────────────────────────────────────────────────────────
+function setupGifState(frames, width, height, name) {
+  state.gifFrames = frames;
+  state.gifWidth  = width;
+  state.gifHeight = height;
+  state.totalFrames = frames.length;
+  state.currentFrame = 0;
+  state.mode = 'gif';
+
+  const avgDelay = frames.reduce((s, f) => s + f.delay, 0) / frames.length;
+  state.fps = Math.round(1000 / avgDelay) || 10;
+
+  canvasEl.width  = width;
+  canvasEl.height = height;
+  state.gifCtx = canvasEl.getContext('2d');
+
+  videoEl.style.display = 'none';
+  canvasEl.style.display = 'block';
+
+  typeBadge.textContent = 'GIF';
+  gifNotice.classList.add('show');
+
+  const totalMs = frames.reduce((s, f) => s + f.delay, 0);
+  durationLabel.textContent = formatTime(totalMs / 1000);
+  resDisplay.textContent = `${width}x${height}`;
+  fpsDisplay.textContent = `~${state.fps}`;
+  fileDisplay.textContent = name;
+
+  renderGifFrame(0);
+  updateUI();
+}
+
 async function initGif(file) {
   loading.classList.add('visible');
-  // yield so the spinner renders before sync decode work
   await new Promise(r => setTimeout(r, 30));
   try {
     const buffer = await file.arrayBuffer();
     const { frames, width, height } = decodeGif(buffer);
-
     if (!frames || frames.length === 0) throw new Error('No frames found');
-
-    state.gifFrames = frames;
-    state.gifWidth  = width;
-    state.gifHeight = height;
-    state.totalFrames = frames.length;
-    state.currentFrame = 0;
-    state.mode = 'gif';
-
-    // delay is already ms
-    const avgDelay = frames.reduce((s, f) => s + f.delay, 0) / frames.length;
-    state.fps = Math.round(1000 / avgDelay) || 10;
-
-    canvasEl.width  = width;
-    canvasEl.height = height;
-    state.gifCtx = canvasEl.getContext('2d');
-
-    videoEl.style.display = 'none';
-    canvasEl.style.display = 'block';
-
-    typeBadge.textContent = 'GIF';
-    gifNotice.classList.add('show');
-
-    const totalMs = frames.reduce((s, f) => s + f.delay, 0);
-    durationLabel.textContent = formatTime(totalMs / 1000);
-    resDisplay.textContent = `${width}x${height}`;
-    fpsDisplay.textContent = `~${state.fps}`;
-    fileDisplay.textContent = file.name;
-
-    renderGifFrame(0);
-    updateUI();
+    setupGifState(frames, width, height, file.name);
   } catch (err) {
     showToast('Failed to decode GIF: ' + err.message);
     console.error(err);
@@ -1012,14 +1038,73 @@ function loadFile(file) {
   setActiveSpeed(null);
 
   if (isGif) initGif(file);
-  else       initVideo(file);
+  else {
+    if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
+    state.objectUrl = URL.createObjectURL(file);
+    initVideo(state.objectUrl, file.name);
+  }
+}
+
+async function loadFromUrl(raw) {
+  const url = raw.trim();
+  if (!url) return;
+
+  stopPlayback();
+  state.gifFrames = [];
+  state.playing = false;
+  state.currentFrame = 0;
+  state.totalFrames = 0;
+
+  const name = url.split('/').pop().split('?')[0] || url;
+  const isGif = /\.gif(\?|$)/i.test(url);
+
+  fileNameEl.textContent = name;
+  dropZone.style.display = 'none';
+  playerWrap.style.display = 'flex';
+  state.playbackFps = null;
+  setActiveSpeed(null);
+
+  if (isGif) {
+    loading.classList.add('visible');
+    await new Promise(r => setTimeout(r, 30));
+    try {
+      const resp = await fetch(url);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const buffer = await resp.arrayBuffer();
+      const { frames, width, height } = decodeGif(buffer);
+      if (!frames || frames.length === 0) throw new Error('No frames found');
+      setupGifState(frames, width, height, name);
+    } catch (err) {
+      showToast('Failed to load GIF: ' + err.message);
+      playerWrap.style.display = 'none';
+      dropZone.style.display = 'flex';
+    } finally {
+      loading.classList.remove('visible');
+    }
+  } else {
+    initVideo(url, name);
+  }
 }
 
 // ─── Event listeners ───────────────────────────────────────────────────────
 
 // File input / drop zone
 fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
-dropZone.addEventListener('click', () => fileInput.click());
+dropZone.addEventListener('click', e => {
+  // Don't open file picker when clicking the URL input or its button
+  if (e.target === urlInput || e.target === urlLoadBtn) return;
+  fileInput.click();
+});
+
+// URL input
+urlLoadBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  loadFromUrl(urlInput.value);
+});
+urlInput.addEventListener('keydown', e => {
+  if (e.key === 'Enter') { e.stopPropagation(); loadFromUrl(urlInput.value); }
+});
+urlInput.addEventListener('click', e => e.stopPropagation());
 dropZone.addEventListener('dragover', e => {
   e.preventDefault();
   dropZone.classList.add('drag-over');
