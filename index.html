@@ -531,8 +531,6 @@ input[type=range]::-moz-range-thumb {
         <button class="btn" id="next-btn">NEXT &gt;&gt;</button>
         <button class="btn" id="last-btn">LAST &gt;|</button>
         <div class="btn-spacer"></div>
-        <button class="btn" id="step-back-btn">-10</button>
-        <button class="btn" id="step-fwd-btn">+10</button>
         <button class="btn" id="loop-btn">~ LOOP</button>
         <button class="btn danger" id="open-new-btn">LOAD NEW</button>
       </div>
@@ -571,7 +569,6 @@ input[type=range]::-moz-range-thumb {
       <div class="hints">
         <span class="hint"><kbd>Space</kbd> play/pause</span>
         <span class="hint"><kbd>←</kbd><kbd>→</kbd> step frame</span>
-        <span class="hint"><kbd>Shift+←</kbd><kbd>Shift+→</kbd> ±10 frames</span>
         <span class="hint"><kbd>Home</kbd><kbd>End</kbd> first/last</span>
         <span class="hint"><kbd>L</kbd> loop toggle</span>
       </div>
@@ -609,8 +606,6 @@ const firstBtn      = document.getElementById('first-btn');
 const prevBtn       = document.getElementById('prev-btn');
 const nextBtn       = document.getElementById('next-btn');
 const lastBtn       = document.getElementById('last-btn');
-const stepBackBtn   = document.getElementById('step-back-btn');
-const stepFwdBtn    = document.getElementById('step-fwd-btn');
 const loopBtn       = document.getElementById('loop-btn');
 const speedBtns     = document.querySelectorAll('.speed-btn');
 const customFpsInput = document.getElementById('custom-fps');
@@ -631,7 +626,7 @@ const state = {
   totalFrames: 0,
   currentFrame: 0,
   playing: false,
-  loop: false,
+  loop: true,
   playbackFps: null,   // null = native speed; number = manual fps
   intervalId: null,
   objectUrl: null,
@@ -1228,21 +1223,6 @@ nextBtn.addEventListener('click', () => {
   else renderGifFrame(f); // fast path: +1 forward
 });
 
-stepBackBtn.addEventListener('click', () => {
-  if (!state.mode) return;
-  stopPlayback();
-  const f = Math.max(0, state.currentFrame - 10);
-  if (state.mode === 'video') seekVideoFrame(f);
-  else seekGifToFrame(f);
-});
-
-stepFwdBtn.addEventListener('click', () => {
-  if (!state.mode) return;
-  stopPlayback();
-  const f = Math.min(state.totalFrames - 1, state.currentFrame + 10);
-  if (state.mode === 'video') seekVideoFrame(f);
-  else seekGifToFrame(f);
-});
 
 // Loop toggle
 loopBtn.addEventListener('click', () => {
@@ -1305,13 +1285,11 @@ document.addEventListener('keydown', e => {
       break;
     case 'ArrowLeft':
       e.preventDefault();
-      if (e.shiftKey) stepBackBtn.click();
-      else prevBtn.click();
+      prevBtn.click();
       break;
     case 'ArrowRight':
       e.preventDefault();
-      if (e.shiftKey) stepFwdBtn.click();
-      else nextBtn.click();
+      nextBtn.click();
       break;
     case 'Home':
       e.preventDefault();
