@@ -434,7 +434,7 @@ input[type=range]::-moz-range-thumb {
 
   <!-- Drop Zone -->
   <div id="drop-zone">
-    <div class="drop-icon">⬡</div>
+    <div class="drop-icon">[ ]</div>
     <div class="drop-label">Drop file here</div>
     <div class="drop-sub">MP4 / GIF / WEBM / MOV · or click to browse</div>
     <input type="file" id="file-input" accept="video/*,.gif,image/gif">
@@ -454,7 +454,7 @@ input[type=range]::-moz-range-thumb {
     </div>
 
     <div class="gif-notice" id="gif-notice">
-      ⚠ GIF MODE — frames decoded via gifuct-js. Playback respects native frame delays.
+      ! GIF MODE -- frames decoded via gifuct-js. Playback respects native frame delays.
     </div>
 
     <div id="controls">
@@ -470,15 +470,15 @@ input[type=range]::-moz-range-thumb {
 
       <!-- Main buttons -->
       <div class="btn-row">
-        <button class="btn" id="first-btn">⏮ FIRST</button>
-        <button class="btn" id="prev-btn">◀◀ PREV</button>
-        <button class="btn primary" id="play-btn">▶ PLAY</button>
-        <button class="btn" id="next-btn">NEXT ▶▶</button>
-        <button class="btn" id="last-btn">LAST ⏭</button>
+        <button class="btn" id="first-btn">|&lt; FIRST</button>
+        <button class="btn" id="prev-btn">&lt;&lt; PREV</button>
+        <button class="btn primary" id="play-btn">&gt; PLAY</button>
+        <button class="btn" id="next-btn">NEXT &gt;&gt;</button>
+        <button class="btn" id="last-btn">LAST &gt;|</button>
         <div class="btn-spacer"></div>
-        <button class="btn" id="step-back-btn">−10</button>
+        <button class="btn" id="step-back-btn">-10</button>
         <button class="btn" id="step-fwd-btn">+10</button>
-        <button class="btn" id="loop-btn">⟳ LOOP</button>
+        <button class="btn" id="loop-btn">~ LOOP</button>
         <button class="btn danger" id="open-new-btn">LOAD NEW</button>
       </div>
 
@@ -619,7 +619,7 @@ function updateUI() {
   timeLabel.textContent = formatTime(t);
   frameNumEl.textContent = `${f} / ${total - 1}`;
   frameOverlay.textContent = `FRAME ${f} / ${total - 1}  |  ${t.toFixed(3)}s`;
-  playBtn.textContent = state.playing ? '⏸ PAUSE' : '▶ PLAY';
+  playBtn.textContent = state.playing ? '|| PAUSE' : '> PLAY';
 }
 
 function setActiveSpeed(fps) {
@@ -631,7 +631,7 @@ function setActiveSpeed(fps) {
 
 function updateLoopBtn() {
   loopBtn.classList.toggle('loop-active', state.loop);
-  loopBtn.textContent = state.loop ? '⟳ LOOP ON' : '⟳ LOOP';
+  loopBtn.textContent = state.loop ? '~ LOOP ON' : '~ LOOP';
 }
 
 // ─── Playback core ─────────────────────────────────────────────────────────
