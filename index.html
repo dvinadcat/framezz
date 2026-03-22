@@ -1,0 +1,782 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Framezz</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: #111;
+    color: #eee;
+    font-family: system-ui, -apple-system, sans-serif;
+    height: 100dvh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  /* ── Drop Zone ── */
+  #drop-zone {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    border: 2px dashed #444;
+    margin: 24px;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+  }
+  #drop-zone.drag-over {
+    border-color: #4a9eff;
+    background: rgba(74, 158, 255, 0.08);
+  }
+  #drop-zone .icon { font-size: 56px; }
+  #drop-zone .label {
+    font-size: 18px;
+    color: #999;
+    text-align: center;
+    padding: 0 32px;
+  }
+  #drop-zone .sub {
+    font-size: 13px;
+    color: #555;
+  }
+  #file-input { display: none; }
+
+  /* ── Player ── */
+  #player-wrapper {
+    display: none;
+    flex-direction: column;
+    height: 100dvh;
+  }
+
+  /* top bar */
+  #top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 12px;
+    background: #1a1a1a;
+    border-bottom: 1px solid #2a2a2a;
+    min-height: 44px;
+    flex-shrink: 0;
+  }
+  #file-name {
+    font-size: 13px;
+    color: #888;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: calc(100% - 60px);
+  }
+  #open-new-btn {
+    background: #2a2a2a;
+    border: 1px solid #444;
+    color: #ccc;
+    border-radius: 6px;
+    padding: 4px 10px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  /* media area */
+  #media-area {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #000;
+    overflow: hidden;
+    min-height: 0;
+  }
+  #video-el {
+    max-width: 100%;
+    max-height: 100%;
+    display: none;
+  }
+  #canvas-el {
+    max-width: 100%;
+    max-height: 100%;
+    display: none;
+    image-rendering: pixelated;
+  }
+
+  /* controls */
+  #controls {
+    background: #1a1a1a;
+    border-top: 1px solid #2a2a2a;
+    padding: 10px 12px;
+    padding-bottom: calc(10px + env(safe-area-inset-bottom));
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+
+  /* progress */
+  #progress-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  #progress-bar {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: #333;
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  #progress-bar::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #4a9eff;
+    cursor: pointer;
+    box-shadow: 0 0 4px rgba(74,158,255,0.6);
+  }
+  #progress-bar::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: #4a9eff;
+    border: none;
+    cursor: pointer;
+  }
+  #frame-info {
+    font-size: 12px;
+    color: #888;
+    white-space: nowrap;
+    min-width: 90px;
+    text-align: right;
+  }
+
+  /* button rows */
+  .btn-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+  }
+  .btn {
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 8px;
+    background: #2a2a2a;
+    color: #eee;
+    border: 1px solid #3a3a3a;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:active { background: #3a3a3a; }
+  #play-btn { min-width: 60px; background: #4a9eff; border-color: #4a9eff; }
+  #play-btn:active { background: #3a8ee0; }
+
+  /* speed buttons */
+  .speed-row {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+  }
+  .speed-btn {
+    flex: 1;
+    max-width: 72px;
+    min-height: 36px;
+    border-radius: 6px;
+    background: #2a2a2a;
+    color: #aaa;
+    border: 1px solid #3a3a3a;
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .speed-btn.active {
+    background: #4a9eff;
+    border-color: #4a9eff;
+    color: #fff;
+  }
+  .speed-btn:active { opacity: 0.8; }
+
+  /* loading overlay */
+  #loading {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0,0,0,0.7);
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    font-size: 16px;
+    color: #ccc;
+    z-index: 100;
+  }
+  #loading.visible { display: flex; }
+  .spinner {
+    width: 32px;
+    height: 32px;
+    border: 3px solid #333;
+    border-top-color: #4a9eff;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* error toast */
+  #toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #c0392b;
+    color: #fff;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 200;
+    white-space: nowrap;
+  }
+  #toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+
+<!-- Drop Zone -->
+<div id="drop-zone">
+  <div class="icon">🎬</div>
+  <div class="label">Drop a video or GIF here<br>or tap to browse</div>
+  <div class="sub">MP4 · WebM · MOV · GIF</div>
+  <input type="file" id="file-input" accept="video/*,.gif,image/gif">
+</div>
+
+<!-- Player -->
+<div id="player-wrapper">
+  <div id="top-bar">
+    <div id="file-name">—</div>
+    <button id="open-new-btn">Open…</button>
+  </div>
+
+  <div id="media-area">
+    <video id="video-el" preload="auto" playsinline webkit-playsinline></video>
+    <canvas id="canvas-el"></canvas>
+  </div>
+
+  <div id="controls">
+    <div id="progress-row">
+      <input type="range" id="progress-bar" min="0" value="0" step="1">
+      <div id="frame-info">0 / 0</div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn" id="first-btn" title="First frame">⏮</button>
+      <button class="btn" id="prev-btn" title="Previous frame">◀</button>
+      <button class="btn" id="play-btn" title="Play / Pause">▶</button>
+      <button class="btn" id="next-btn" title="Next frame">▶</button>
+      <button class="btn" id="last-btn" title="Last frame">⏭</button>
+    </div>
+
+    <div class="speed-row">
+      <button class="speed-btn" data-fps="1">1 fps</button>
+      <button class="speed-btn" data-fps="5">5 fps</button>
+      <button class="speed-btn" data-fps="15">15 fps</button>
+      <button class="speed-btn" data-fps="30">30 fps</button>
+      <button class="speed-btn active" data-fps="normal">Normal</button>
+    </div>
+  </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loading">
+  <div class="spinner"></div>
+  <div>Decoding GIF…</div>
+</div>
+
+<!-- Error toast -->
+<div id="toast"></div>
+
+<script>
+// ─── DOM refs ──────────────────────────────────────────────────────────────
+const dropZone    = document.getElementById('drop-zone');
+const fileInput   = document.getElementById('file-input');
+const playerWrap  = document.getElementById('player-wrapper');
+const fileNameEl  = document.getElementById('file-name');
+const openNewBtn  = document.getElementById('open-new-btn');
+const videoEl     = document.getElementById('video-el');
+const canvasEl    = document.getElementById('canvas-el');
+const progressBar = document.getElementById('progress-bar');
+const frameInfo   = document.getElementById('frame-info');
+const playBtn     = document.getElementById('play-btn');
+const firstBtn    = document.getElementById('first-btn');
+const prevBtn     = document.getElementById('prev-btn');
+const nextBtn     = document.getElementById('next-btn');
+const lastBtn     = document.getElementById('last-btn');
+const speedBtns   = document.querySelectorAll('.speed-btn');
+const loading     = document.getElementById('loading');
+const toast       = document.getElementById('toast');
+
+// ─── State ────────────────────────────────────────────────────────────────
+const state = {
+  mode: null,        // 'video' | 'gif'
+  fps: 30,
+  totalFrames: 0,
+  currentFrame: 0,
+  playing: false,
+  playbackFps: null, // null = native normal; number = manual fps
+  intervalId: null,
+  objectUrl: null,
+  // GIF
+  gifFrames: [],
+  gifWidth: 0,
+  gifHeight: 0,
+  offscreenCanvas: null,
+  offscreenCtx: null,
+  gifCtx: null,
+  gifAnimTimer: null,
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+function showToast(msg) {
+  toast.textContent = msg;
+  toast.classList.add('show');
+  setTimeout(() => toast.classList.remove('show'), 3000);
+}
+
+function formatTime(seconds) {
+  const m = Math.floor(seconds / 60);
+  const s = (seconds % 60).toFixed(2).padStart(5, '0');
+  return `${m}:${s}`;
+}
+
+function updateUI() {
+  const f = state.currentFrame;
+  const total = state.totalFrames;
+  progressBar.max = Math.max(0, total - 1);
+  progressBar.value = f;
+
+  let timeStr = '';
+  if (state.mode === 'video') {
+    timeStr = ' — ' + formatTime(videoEl.currentTime);
+  } else if (state.mode === 'gif' && state.fps > 0) {
+    timeStr = ' — ' + formatTime(f / state.fps);
+  }
+  frameInfo.textContent = `${f} / ${total - 1}${timeStr}`;
+
+  playBtn.textContent = state.playing ? '⏸' : '▶';
+}
+
+function setActiveSpeed(fps) {
+  speedBtns.forEach(btn => {
+    const v = btn.dataset.fps === 'normal' ? null : Number(btn.dataset.fps);
+    btn.classList.toggle('active',
+      fps === null ? btn.dataset.fps === 'normal' : v === fps);
+  });
+}
+
+// ─── Playback core ────────────────────────────────────────────────────────
+function stopPlayback() {
+  state.playing = false;
+  clearInterval(state.intervalId);
+  clearTimeout(state.gifAnimTimer);
+  state.intervalId = null;
+  state.gifAnimTimer = null;
+  if (state.mode === 'video') videoEl.pause();
+  updateUI();
+}
+
+function startPlayback() {
+  state.playing = true;
+
+  if (state.mode === 'video') {
+    if (state.playbackFps === null) {
+      // native speed
+      videoEl.play().catch(() => {});
+    } else {
+      // manual interval
+      videoEl.pause();
+      const ms = 1000 / state.playbackFps;
+      state.intervalId = setInterval(() => {
+        if (!state.playing) return;
+        const next = videoEl.currentTime + 1 / state.fps;
+        if (next >= videoEl.duration) {
+          stopPlayback();
+          seekVideoFrame(state.totalFrames - 1);
+          return;
+        }
+        seekVideoToTime(next);
+      }, ms);
+    }
+  } else if (state.mode === 'gif') {
+    if (state.playbackFps === null) {
+      // play at native GIF frame delays
+      scheduleGifFrame();
+    } else {
+      // fixed fps
+      const ms = 1000 / state.playbackFps;
+      state.intervalId = setInterval(() => {
+        if (!state.playing) return;
+        const next = (state.currentFrame + 1) % state.totalFrames;
+        renderGifFrame(next);
+      }, ms);
+    }
+  }
+  updateUI();
+}
+
+function scheduleGifFrame() {
+  if (!state.playing || state.mode !== 'gif') return;
+  const frame = state.gifFrames[state.currentFrame];
+  const delay = (frame.delay || 10) * 10; // GIF delay is in 1/100s units
+  const ms = Math.max(delay, 20);
+  state.gifAnimTimer = setTimeout(() => {
+    if (!state.playing) return;
+    const next = (state.currentFrame + 1) % state.totalFrames;
+    renderGifFrame(next);
+    scheduleGifFrame();
+  }, ms);
+}
+
+// ─── Video ────────────────────────────────────────────────────────────────
+function initVideo(file) {
+  state.mode = 'video';
+  state.fps = 30;
+
+  if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
+  state.objectUrl = URL.createObjectURL(file);
+
+  videoEl.src = state.objectUrl;
+  videoEl.load();
+  videoEl.style.display = 'block';
+  canvasEl.style.display = 'none';
+
+  videoEl.addEventListener('loadedmetadata', () => {
+    state.totalFrames = Math.max(1, Math.round(videoEl.duration * state.fps));
+    state.currentFrame = 0;
+    progressBar.max = state.totalFrames - 1;
+    updateUI();
+  }, { once: true });
+
+  videoEl.addEventListener('timeupdate', () => {
+    if (!state.playing || state.playbackFps !== null) return; // manual mode handles it
+    state.currentFrame = Math.min(
+      state.totalFrames - 1,
+      Math.round(videoEl.currentTime * state.fps)
+    );
+    updateUI();
+  });
+
+  videoEl.addEventListener('ended', () => {
+    stopPlayback();
+    state.currentFrame = state.totalFrames - 1;
+    updateUI();
+  });
+}
+
+function seekVideoToTime(t) {
+  videoEl.pause();
+  videoEl.currentTime = Math.max(0, Math.min(videoEl.duration || 0, t));
+  state.currentFrame = Math.min(
+    state.totalFrames - 1,
+    Math.round(videoEl.currentTime * state.fps)
+  );
+  updateUI();
+}
+
+function seekVideoFrame(f) {
+  seekVideoToTime(f / state.fps);
+}
+
+// ─── GIF ──────────────────────────────────────────────────────────────────
+async function initGif(file) {
+  loading.classList.add('visible');
+  try {
+    await ensureGifuct();
+
+    const buffer = await file.arrayBuffer();
+    const gif = window.gifuct.parseGIF(buffer);
+    const frames = window.gifuct.decompressFrames(gif, true);
+
+    if (!frames || frames.length === 0) throw new Error('No frames decoded');
+
+    state.gifFrames = frames;
+    state.gifWidth  = gif.lsd.width;
+    state.gifHeight = gif.lsd.height;
+    state.totalFrames = frames.length;
+    state.currentFrame = 0;
+    state.mode = 'gif';
+
+    // compute average fps from frame delays (delay is in 1/100s units)
+    const avgDelay = frames.reduce((s, f) => s + (f.delay || 10), 0) / frames.length;
+    state.fps = Math.round(100 / avgDelay) || 10;
+
+    // setup canvas
+    canvasEl.width  = state.gifWidth;
+    canvasEl.height = state.gifHeight;
+    state.gifCtx = canvasEl.getContext('2d');
+
+    // offscreen canvas for disposal type 3
+    state.offscreenCanvas = document.createElement('canvas');
+    state.offscreenCanvas.width  = state.gifWidth;
+    state.offscreenCanvas.height = state.gifHeight;
+    state.offscreenCtx = state.offscreenCanvas.getContext('2d');
+
+    videoEl.style.display = 'none';
+    canvasEl.style.display = 'block';
+
+    // clear canvas
+    state.gifCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
+
+    renderGifFrame(0);
+    updateUI();
+  } catch (err) {
+    showToast('Failed to decode GIF: ' + err.message);
+    console.error(err);
+  } finally {
+    loading.classList.remove('visible');
+  }
+}
+
+function renderGifFrame(index) {
+  state.currentFrame = index;
+  const frame = state.gifFrames[index];
+  const ctx = state.gifCtx;
+  const disposal = frame.disposalType;
+
+  // Save snapshot before drawing (for disposal 3 of next frame)
+  if (disposal === 3) {
+    state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
+    state.offscreenCtx.drawImage(canvasEl, 0, 0);
+  }
+
+  // Apply disposal for this frame
+  if (disposal === 2) {
+    // Restore to background color (treat as transparent/clear)
+    ctx.clearRect(frame.dims.left, frame.dims.top, frame.dims.width, frame.dims.height);
+  } else if (disposal === 3) {
+    // Restore to previous — draw offscreen snapshot
+    ctx.clearRect(0, 0, state.gifWidth, state.gifHeight);
+    ctx.drawImage(state.offscreenCanvas, 0, 0);
+  }
+  // disposal 0/1: do not clear; leave canvas as-is
+
+  // Draw the frame patch
+  const imageData = ctx.createImageData(frame.dims.width, frame.dims.height);
+  imageData.data.set(frame.patch);
+  ctx.putImageData(imageData, frame.dims.left, frame.dims.top);
+
+  updateUI();
+}
+
+// ─── gifuct-js CDN loader ─────────────────────────────────────────────────
+function ensureGifuct() {
+  if (window.gifuct) return Promise.resolve();
+  return new Promise((resolve, reject) => {
+    // gifuct-js UMD bundle exposes parseGIF and decompressFrames as globals
+    // We wrap them under window.gifuct for clarity
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/dist/gifuct-js.js';
+    script.onload = () => {
+      // The UMD build exposes parseGIF and decompressFrames globally
+      if (typeof parseGIF === 'function' && typeof decompressFrames === 'function') {
+        window.gifuct = { parseGIF, decompressFrames };
+        resolve();
+      } else {
+        reject(new Error('gifuct-js did not expose expected globals'));
+      }
+    };
+    script.onerror = () => reject(new Error('Failed to load gifuct-js from CDN'));
+    document.head.appendChild(script);
+  });
+}
+
+// ─── File loading ─────────────────────────────────────────────────────────
+function loadFile(file) {
+  if (!file) return;
+  stopPlayback();
+
+  state.gifFrames = [];
+  state.playing = false;
+  state.currentFrame = 0;
+  state.totalFrames = 0;
+
+  const isGif = file.type === 'image/gif' || file.name.toLowerCase().endsWith('.gif');
+  const isVideo = file.type.startsWith('video/') ||
+    /\.(mp4|webm|mov|avi|mkv)$/i.test(file.name);
+
+  if (!isGif && !isVideo) {
+    showToast('Unsupported file type. Use MP4, WebM, MOV, or GIF.');
+    return;
+  }
+
+  fileNameEl.textContent = file.name;
+  dropZone.style.display = 'none';
+  playerWrap.style.display = 'flex';
+
+  // reset speed to normal
+  state.playbackFps = null;
+  setActiveSpeed(null);
+
+  if (isGif) initGif(file);
+  else       initVideo(file);
+}
+
+// ─── Event listeners ──────────────────────────────────────────────────────
+
+// File input
+fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
+dropZone.addEventListener('click', () => fileInput.click());
+
+// Drag and drop
+dropZone.addEventListener('dragover', e => {
+  e.preventDefault();
+  dropZone.classList.add('drag-over');
+});
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault();
+  dropZone.classList.remove('drag-over');
+  loadFile(e.dataTransfer.files[0]);
+});
+
+// Open new file
+openNewBtn.addEventListener('click', () => fileInput.click());
+
+// Play / Pause
+playBtn.addEventListener('click', () => {
+  if (!state.mode) return;
+  if (state.playing) {
+    stopPlayback();
+  } else {
+    // if at end, restart from beginning
+    if (state.currentFrame >= state.totalFrames - 1) {
+      if (state.mode === 'video') seekVideoFrame(0);
+      else renderGifFrame(0);
+    }
+    startPlayback();
+  }
+});
+
+// Frame navigation
+firstBtn.addEventListener('click', () => {
+  if (!state.mode) return;
+  stopPlayback();
+  if (state.mode === 'video') seekVideoFrame(0);
+  else renderGifFrame(0);
+});
+
+lastBtn.addEventListener('click', () => {
+  if (!state.mode) return;
+  stopPlayback();
+  if (state.mode === 'video') seekVideoFrame(state.totalFrames - 1);
+  else renderGifFrame(state.totalFrames - 1);
+});
+
+prevBtn.addEventListener('click', () => {
+  if (!state.mode) return;
+  stopPlayback();
+  const f = Math.max(0, state.currentFrame - 1);
+  if (state.mode === 'video') seekVideoFrame(f);
+  else renderGifFrame(f);
+});
+
+nextBtn.addEventListener('click', () => {
+  if (!state.mode) return;
+  stopPlayback();
+  const f = Math.min(state.totalFrames - 1, state.currentFrame + 1);
+  if (state.mode === 'video') seekVideoFrame(f);
+  else renderGifFrame(f);
+});
+
+// Progress bar seek
+let isSeeking = false;
+progressBar.addEventListener('mousedown', () => { isSeeking = true; stopPlayback(); });
+progressBar.addEventListener('touchstart', () => { isSeeking = true; stopPlayback(); }, { passive: true });
+progressBar.addEventListener('input', () => {
+  if (!state.mode) return;
+  const f = parseInt(progressBar.value);
+  if (state.mode === 'video') seekVideoFrame(f);
+  else renderGifFrame(f);
+});
+progressBar.addEventListener('change', () => { isSeeking = false; });
+
+// Speed buttons
+speedBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const val = btn.dataset.fps;
+    state.playbackFps = val === 'normal' ? null : Number(val);
+    setActiveSpeed(state.playbackFps);
+
+    // If currently playing, restart with new speed
+    if (state.playing) {
+      stopPlayback();
+      startPlayback();
+    } else if (state.mode === 'video' && state.playbackFps === null) {
+      // Ensure video is paused when switching back to normal while stopped
+      videoEl.pause();
+    }
+  });
+});
+
+// Keyboard shortcuts (desktop)
+document.addEventListener('keydown', e => {
+  if (!state.mode) return;
+  if (e.target.tagName === 'INPUT') return;
+  switch (e.key) {
+    case ' ':
+    case 'k':
+      e.preventDefault();
+      playBtn.click();
+      break;
+    case 'ArrowLeft':
+    case 'j':
+      e.preventDefault();
+      prevBtn.click();
+      break;
+    case 'ArrowRight':
+    case 'l':
+      e.preventDefault();
+      nextBtn.click();
+      break;
+    case 'Home':
+      e.preventDefault();
+      firstBtn.click();
+      break;
+    case 'End':
+      e.preventDefault();
+      lastBtn.click();
+      break;
+  }
+});
+
+// Style the next-frame button to distinguish from play
+nextBtn.innerHTML = '▶';
+nextBtn.style.fontSize = '14px';
+nextBtn.innerHTML = '▶<sub style="font-size:9px;vertical-align:sub">1</sub>';
+
+// Better icons using Unicode
+firstBtn.textContent = '⏮';
+prevBtn.textContent = '⏪';
+playBtn.textContent = '▶';
+nextBtn.textContent = '⏩';
+lastBtn.textContent = '⏭';
+</script>
+</body>
+</html>
