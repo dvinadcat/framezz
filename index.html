@@ -578,11 +578,9 @@ const state = {
   intervalId: null,
   objectUrl: null,
   // GIF
-  gifFrames: [],
+  gifFrames: [],   // { canvas: HTMLCanvasElement, delay: ms }
   gifWidth: 0,
   gifHeight: 0,
-  offscreenCanvas: null,
-  offscreenCtx: null,
   gifCtx: null,
   gifAnimTimer: null,
 };
@@ -698,8 +696,7 @@ function startPlayback() {
 function scheduleGifFrame() {
   if (!state.playing || state.mode !== 'gif') return;
   const frame = state.gifFrames[state.currentFrame];
-  const delay = (frame.delay || 10) * 10;
-  const ms = Math.max(delay, 20);
+  const ms = Math.max(frame.delay, 20); // delay already in ms
   state.gifAnimTimer = setTimeout(() => {
     if (!state.playing) return;
     let next = state.currentFrame + 1;
@@ -784,33 +781,28 @@ function seekVideoFrame(f) {
 // ─── GIF ───────────────────────────────────────────────────────────────────
 async function initGif(file) {
   loading.classList.add('visible');
+  // yield so the spinner renders before sync decode work
+  await new Promise(r => setTimeout(r, 30));
   try {
-    await ensureGifuct();
-
     const buffer = await file.arrayBuffer();
-    const gif = window.gifuct.parseGIF(buffer);
-    const frames = window.gifuct.decompressFrames(gif, true);
+    const { frames, width, height } = decodeGif(buffer);
 
-    if (!frames || frames.length === 0) throw new Error('No frames decoded');
+    if (!frames || frames.length === 0) throw new Error('No frames found');
 
     state.gifFrames = frames;
-    state.gifWidth  = gif.lsd.width;
-    state.gifHeight = gif.lsd.height;
+    state.gifWidth  = width;
+    state.gifHeight = height;
     state.totalFrames = frames.length;
     state.currentFrame = 0;
     state.mode = 'gif';
 
-    const avgDelay = frames.reduce((s, f) => s + (f.delay || 10), 0) / frames.length;
-    state.fps = Math.round(100 / avgDelay) || 10;
+    // delay is already ms
+    const avgDelay = frames.reduce((s, f) => s + f.delay, 0) / frames.length;
+    state.fps = Math.round(1000 / avgDelay) || 10;
 
-    canvasEl.width  = state.gifWidth;
-    canvasEl.height = state.gifHeight;
+    canvasEl.width  = width;
+    canvasEl.height = height;
     state.gifCtx = canvasEl.getContext('2d');
-
-    state.offscreenCanvas = document.createElement('canvas');
-    state.offscreenCanvas.width  = state.gifWidth;
-    state.offscreenCanvas.height = state.gifHeight;
-    state.offscreenCtx = state.offscreenCanvas.getContext('2d');
 
     videoEl.style.display = 'none';
     canvasEl.style.display = 'block';
@@ -818,14 +810,13 @@ async function initGif(file) {
     typeBadge.textContent = 'GIF';
     gifNotice.classList.add('show');
 
-    const totalMs = frames.reduce((s, f) => s + (f.delay || 10) * 10, 0);
+    const totalMs = frames.reduce((s, f) => s + f.delay, 0);
     durationLabel.textContent = formatTime(totalMs / 1000);
-    resDisplay.textContent = `${state.gifWidth}×${state.gifHeight}`;
+    resDisplay.textContent = `${width}x${height}`;
     fpsDisplay.textContent = `~${state.fps}`;
     fileDisplay.textContent = file.name;
 
-    state.currentFrame = -1; // sentinel: no previous frame yet
-    seekGifToFrame(0);
+    renderGifFrame(0);
     updateUI();
   } catch (err) {
     showToast('Failed to decode GIF: ' + err.message);
@@ -835,82 +826,158 @@ async function initGif(file) {
   }
 }
 
-function applyGifDisposal(ctx, frame) {
-  switch (frame.disposalType) {
-    case 2:
-      ctx.clearRect(frame.dims.left, frame.dims.top, frame.dims.width, frame.dims.height);
-      break;
-    case 3:
-      ctx.clearRect(0, 0, state.gifWidth, state.gifHeight);
-      ctx.drawImage(state.offscreenCanvas, 0, 0);
-      break;
-  }
-}
-
-// Forward step: composites onto current canvas state (fast path — use only for +1 steps)
+// Draw a pre-composited snapshot frame (O(1) seek in any direction)
 function renderGifFrame(index) {
-  const ctx = state.gifCtx;
-  const prevFrame = state.currentFrame >= 0 ? state.gifFrames[state.currentFrame] : null;
-
-  if (prevFrame && prevFrame.disposalType === 3) {
-    state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
-    state.offscreenCtx.drawImage(canvasEl, 0, 0);
-  }
-
-  if (prevFrame) applyGifDisposal(ctx, prevFrame);
-
-  const frame = state.gifFrames[index];
-  const imageData = ctx.createImageData(frame.dims.width, frame.dims.height);
-  imageData.data.set(frame.patch);
-  ctx.putImageData(imageData, frame.dims.left, frame.dims.top);
-
+  if (!state.gifFrames[index]) return;
+  state.gifCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
+  state.gifCtx.drawImage(state.gifFrames[index].canvas, 0, 0);
   state.currentFrame = index;
   updateUI();
 }
 
-// Arbitrary seek: replays from frame 0 (correct for any seek direction)
 function seekGifToFrame(index) {
-  const ctx = state.gifCtx;
-  ctx.clearRect(0, 0, state.gifWidth, state.gifHeight);
-  state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
+  renderGifFrame(index);
+}
 
-  for (let i = 0; i <= index; i++) {
-    const frame = state.gifFrames[i];
-    const prevFrame = i > 0 ? state.gifFrames[i - 1] : null;
+// ─── Inline GIF decoder ────────────────────────────────────────────────────
+// Parses GIF89a and returns pre-composited snapshot canvases per frame.
+// Each frame: { canvas: HTMLCanvasElement, delay: ms }
+function decodeGif(buffer) {
+  const d = new Uint8Array(buffer);
+  if (String.fromCharCode(d[0],d[1],d[2]) !== 'GIF') throw new Error('Not a GIF');
 
-    if (prevFrame && prevFrame.disposalType === 3) {
-      state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
-      state.offscreenCtx.drawImage(canvasEl, 0, 0);
+  const w = d[6] | (d[7] << 8);
+  const h = d[8] | (d[9] << 8);
+  const hasCT = (d[10] >> 7) & 1;
+  const gct = hasCT ? d.slice(13, 13 + 3 * (1 << ((d[10] & 7) + 1))) : null;
+  const gctSize = gct ? gct.length : 0;
+
+  // Working canvas (accumulates composited pixels)
+  const work = document.createElement('canvas');
+  work.width = w; work.height = h;
+  const wCtx = work.getContext('2d');
+
+  // Previous-frame snapshot (for disposal type 3)
+  const prev = document.createElement('canvas');
+  prev.width = w; prev.height = h;
+  const pCtx = prev.getContext('2d');
+
+  const frames = [];
+  let pos = 13 + gctSize;
+  let delay = 100, disposal = 0, transparent = -1;
+
+  while (pos < d.length) {
+    const block = d[pos];
+    if (block === 0x3B) break; // trailer
+
+    if (block === 0x21) {      // extension
+      const ext = d[pos + 1]; pos += 2;
+      if (ext === 0xF9) {      // graphic control
+        pos++;                 // block size (always 4)
+        disposal    = (d[pos] >> 2) & 7;
+        transparent = (d[pos] & 1) ? d[pos + 3] : -1;
+        delay       = ((d[pos + 1] | (d[pos + 2] << 8)) * 10) || 100;
+        pos += 5;
+        continue;
+      }
+      // skip other extensions
+      while (d[pos] !== 0) pos += d[pos] + 1;
+      pos++; continue;
     }
 
-    if (prevFrame) applyGifDisposal(ctx, prevFrame);
+    if (block === 0x2C) {      // image descriptor
+      pos++;
+      const fx = d[pos] | (d[pos+1] << 8);
+      const fy = d[pos+2] | (d[pos+3] << 8);
+      const fw = d[pos+4] | (d[pos+5] << 8);
+      const fh = d[pos+6] | (d[pos+7] << 8);
+      const hasLCT = (d[pos+8] >> 7) & 1;
+      const lctSize = hasLCT ? 3 * (1 << ((d[pos+8] & 7) + 1)) : 0;
+      pos += 9;
 
-    const imageData = ctx.createImageData(frame.dims.width, frame.dims.height);
-    imageData.data.set(frame.patch);
-    ctx.putImageData(imageData, frame.dims.left, frame.dims.top);
+      const ct = hasLCT ? d.slice(pos, pos + lctSize) : gct;
+      if (hasLCT) pos += lctSize;
+
+      // collect LZW data
+      const lzwMin = d[pos++];
+      const chunks = [];
+      while (d[pos] !== 0) {
+        const len = d[pos++];
+        chunks.push(d.slice(pos, pos + len));
+        pos += len;
+      }
+      pos++; // block terminator
+      const lzw = new Uint8Array(chunks.reduce((a, c) => a + c.length, 0));
+      let off = 0; for (const c of chunks) { lzw.set(c, off); off += c.length; }
+
+      const pixels = lzwDecode(lzwMin, lzw, fw * fh);
+
+      // Apply previous frame's disposal before drawing
+      if (disposal === 2) {
+        wCtx.clearRect(fx, fy, fw, fh);
+      } else if (disposal === 3) {
+        wCtx.clearRect(0, 0, w, h);
+        wCtx.drawImage(prev, 0, 0);
+      }
+
+      // Save snapshot before this frame (for disposal 3 on next frame)
+      pCtx.clearRect(0, 0, w, h);
+      pCtx.drawImage(work, 0, 0);
+
+      // Paint pixels
+      const img = wCtx.createImageData(fw, fh);
+      for (let i = 0; i < pixels.length; i++) {
+        const p = pixels[i];
+        if (p === transparent) continue;
+        const ci = p * 3;
+        img.data[i*4]   = ct[ci];
+        img.data[i*4+1] = ct[ci+1];
+        img.data[i*4+2] = ct[ci+2];
+        img.data[i*4+3] = 255;
+      }
+      wCtx.putImageData(img, fx, fy);
+
+      // Snapshot the full composited frame
+      const snap = document.createElement('canvas');
+      snap.width = w; snap.height = h;
+      snap.getContext('2d').drawImage(work, 0, 0);
+      frames.push({ canvas: snap, delay });
+
+      delay = 100; transparent = -1; disposal = 0;
+      continue;
+    }
+    pos++;
   }
-
-  state.currentFrame = index;
-  updateUI();
+  return { frames, width: w, height: h };
 }
 
-// ─── gifuct-js CDN loader ──────────────────────────────────────────────────
-function ensureGifuct() {
-  if (window.gifuct) return Promise.resolve();
-  return new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/dist/gifuct-js.js';
-    script.onload = () => {
-      if (typeof parseGIF === 'function' && typeof decompressFrames === 'function') {
-        window.gifuct = { parseGIF, decompressFrames };
-        resolve();
-      } else {
-        reject(new Error('gifuct-js did not expose expected globals'));
-      }
-    };
-    script.onerror = () => reject(new Error('Failed to load gifuct-js from CDN'));
-    document.head.appendChild(script);
-  });
+function lzwDecode(minSize, data, count) {
+  const clear = 1 << minSize, eoi = clear + 1;
+  let codeSize = minSize + 1, mask = (1 << codeSize) - 1;
+  let table = [];
+  const reset = () => {
+    table = Array.from({ length: clear }, (_, i) => [i]);
+    table[clear] = []; table[eoi] = [];
+    codeSize = minSize + 1; mask = (1 << codeSize) - 1;
+  };
+  reset();
+  const out = []; let buf = 0, bits = 0, pos = 0, prev = null;
+  while (out.length < count) {
+    while (bits < codeSize && pos < data.length) { buf |= data[pos++] << bits; bits += 8; }
+    const code = buf & mask; buf >>= codeSize; bits -= codeSize;
+    if (code === clear) { reset(); prev = null; continue; }
+    if (code === eoi) break;
+    const entry = code < table.length ? table[code]
+                : (code === table.length && prev) ? [...prev, prev[0]] : null;
+    if (!entry) break;
+    for (const p of entry) out.push(p);
+    if (prev && table.length < 4096) {
+      table.push([...prev, entry[0]]);
+      if (table.length === (1 << codeSize) + 1 && codeSize < 12) { codeSize++; mask = (1 << codeSize) - 1; }
+    }
+    prev = entry;
+  }
+  return out;
 }
 
 // ─── File loading ──────────────────────────────────────────────────────────
