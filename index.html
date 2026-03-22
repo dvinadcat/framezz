@@ -90,6 +90,16 @@ body {
   border-color: var(--accent);
   background: #141400;
 }
+#drop-label-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  flex: 1;
+  width: 100%;
+  justify-content: center;
+}
 .drop-icon { font-size: 2.5rem; opacity: 0.3; }
 .drop-label {
   font-family: 'Barlow Condensed', sans-serif;
@@ -473,9 +483,11 @@ input[type=range]::-moz-range-thumb {
 
   <!-- Drop Zone -->
   <div id="drop-zone">
-    <div class="drop-icon">[ ]</div>
-    <div class="drop-label">Drop file here</div>
-    <div class="drop-sub">MP4 / GIF / WEBM / MOV · or click to browse</div>
+    <label for="file-input" id="drop-label-area">
+      <div class="drop-icon">[ ]</div>
+      <div class="drop-label">Drop file here</div>
+      <div class="drop-sub">MP4 / GIF / WEBM / MOV · or tap to browse</div>
+    </label>
     <div class="url-row">
       <input class="url-input" type="text" id="url-input" placeholder="or paste a url..." autocomplete="off" spellcheck="false">
       <button class="btn" id="url-load-btn">LOAD</button>
@@ -1114,11 +1126,7 @@ async function loadFromUrl(raw) {
 
 // File input / drop zone
 fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
-dropZone.addEventListener('click', e => {
-  // Don't open file picker when clicking the URL input or its button
-  if (e.target === urlInput || e.target === urlLoadBtn) return;
-  fileInput.click();
-});
+// File picker is opened via <label for="file-input"> — works on iOS Safari
 
 // URL input
 urlLoadBtn.addEventListener('click', e => {
