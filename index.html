@@ -569,6 +569,7 @@ input[type=range]::-moz-range-thumb {
       <div class="hints">
         <span class="hint"><kbd>Space</kbd> play/pause</span>
         <span class="hint"><kbd>←</kbd><kbd>→</kbd> step frame</span>
+        <span class="hint"><kbd>Shift+←</kbd><kbd>Shift+→</kbd> ±10 frames</span>
         <span class="hint"><kbd>Home</kbd><kbd>End</kbd> first/last</span>
         <span class="hint"><kbd>L</kbd> loop toggle</span>
       </div>
@@ -1285,11 +1286,21 @@ document.addEventListener('keydown', e => {
       break;
     case 'ArrowLeft':
       e.preventDefault();
-      prevBtn.click();
+      if (e.shiftKey) {
+        if (!state.mode) break;
+        stopPlayback();
+        const fb = Math.max(0, state.currentFrame - 10);
+        if (state.mode === 'video') seekVideoFrame(fb); else seekGifToFrame(fb);
+      } else prevBtn.click();
       break;
     case 'ArrowRight':
       e.preventDefault();
-      nextBtn.click();
+      if (e.shiftKey) {
+        if (!state.mode) break;
+        stopPlayback();
+        const ff = Math.min(state.totalFrames - 1, state.currentFrame + 10);
+        if (state.mode === 'video') seekVideoFrame(ff); else seekGifToFrame(ff);
+      } else nextBtn.click();
       break;
     case 'Home':
       e.preventDefault();
