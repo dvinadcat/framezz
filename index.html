@@ -3,344 +3,578 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Framezz</title>
+<title>FRAME // Framezz</title>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+@import url('https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;500;700;900&display=swap');
 
-  body {
-    background: #111;
-    color: #eee;
-    font-family: system-ui, -apple-system, sans-serif;
-    height: 100dvh;
-    display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    user-select: none;
-    -webkit-user-select: none;
-  }
+:root {
+  --bg: #0d0d0d;
+  --panel: #141414;
+  --border: #2a2a2a;
+  --accent: #e8ff00;
+  --accent2: #ff4400;
+  --text: #c8c8c8;
+  --dim: #555;
+  --scrub: #1e1e1e;
+}
 
-  /* ── Drop Zone ── */
-  #drop-zone {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 16px;
-    border: 2px dashed #444;
-    margin: 24px;
-    border-radius: 16px;
-    cursor: pointer;
-    transition: border-color 0.2s, background 0.2s;
-  }
-  #drop-zone.drag-over {
-    border-color: #4a9eff;
-    background: rgba(74, 158, 255, 0.08);
-  }
-  #drop-zone .icon { font-size: 56px; }
-  #drop-zone .label {
-    font-size: 18px;
-    color: #999;
-    text-align: center;
-    padding: 0 32px;
-  }
-  #drop-zone .sub {
-    font-size: 13px;
-    color: #555;
-  }
-  #file-input { display: none; }
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  /* ── Player ── */
-  #player-wrapper {
-    display: none;
-    flex-direction: column;
-    height: 100dvh;
-  }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Share Tech Mono', monospace;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 24px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  background-image:
+    repeating-linear-gradient(0deg, transparent, transparent 39px, #1a1a1a 39px, #1a1a1a 40px),
+    repeating-linear-gradient(90deg, transparent, transparent 39px, #1a1a1a 39px, #1a1a1a 40px);
+}
 
-  /* top bar */
-  #top-bar {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 8px 12px;
-    background: #1a1a1a;
-    border-bottom: 1px solid #2a2a2a;
-    min-height: 44px;
-    flex-shrink: 0;
-  }
-  #file-name {
-    font-size: 13px;
-    color: #888;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    max-width: calc(100% - 60px);
-  }
-  #open-new-btn {
-    background: #2a2a2a;
-    border: 1px solid #444;
-    color: #ccc;
-    border-radius: 6px;
-    padding: 4px 10px;
-    font-size: 13px;
-    cursor: pointer;
-    white-space: nowrap;
-  }
+.container {
+  width: 100%;
+  max-width: 900px;
+  display: flex;
+  flex-direction: column;
+}
 
-  /* media area */
-  #media-area {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #000;
-    overflow: hidden;
-    min-height: 0;
-  }
-  #video-el {
-    max-width: 100%;
-    max-height: 100%;
-    display: none;
-  }
-  #canvas-el {
-    max-width: 100%;
-    max-height: 100%;
-    display: none;
-    image-rendering: pixelated;
-  }
+/* ── Header ── */
+.header {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+  padding: 0 0 12px 0;
+  border-bottom: 1px solid var(--border);
+  flex-wrap: wrap;
+}
+.header h1 {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 900;
+  font-size: 2rem;
+  color: var(--accent);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.header-sub {
+  font-size: 0.7rem;
+  color: var(--dim);
+  letter-spacing: 0.2em;
+}
+.header-right {
+  margin-left: auto;
+  font-size: 0.65rem;
+  color: var(--dim);
+  letter-spacing: 0.15em;
+  text-align: right;
+  line-height: 1.6;
+}
 
-  /* controls */
-  #controls {
-    background: #1a1a1a;
-    border-top: 1px solid #2a2a2a;
-    padding: 10px 12px;
-    padding-bottom: calc(10px + env(safe-area-inset-bottom));
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex-shrink: 0;
-  }
+/* ── Drop Zone ── */
+#drop-zone {
+  border: 1px dashed var(--border);
+  background: var(--panel);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+  min-height: 380px;
+}
+#drop-zone.drag-over {
+  border-color: var(--accent);
+  background: #141400;
+}
+.drop-icon { font-size: 2.5rem; opacity: 0.3; }
+.drop-label {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: 0.2em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+.drop-sub {
+  font-size: 0.65rem;
+  color: #333;
+  letter-spacing: 0.15em;
+}
+#file-input { display: none; }
 
-  /* progress */
-  #progress-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-  #progress-bar {
-    flex: 1;
-    height: 4px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: #333;
-    border-radius: 2px;
-    outline: none;
-    cursor: pointer;
-  }
-  #progress-bar::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #4a9eff;
-    cursor: pointer;
-    box-shadow: 0 0 4px rgba(74,158,255,0.6);
-  }
-  #progress-bar::-moz-range-thumb {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    background: #4a9eff;
-    border: none;
-    cursor: pointer;
-  }
-  #frame-info {
-    font-size: 12px;
-    color: #888;
-    white-space: nowrap;
-    min-width: 90px;
-    text-align: right;
-  }
+/* ── Player ── */
+#player-wrapper {
+  display: none;
+  flex-direction: column;
+}
 
-  /* button rows */
-  .btn-row {
-    display: flex;
-    gap: 6px;
-    justify-content: center;
-  }
-  .btn {
-    min-width: 44px;
-    min-height: 44px;
-    border-radius: 8px;
-    background: #2a2a2a;
-    color: #eee;
-    border: 1px solid #3a3a3a;
-    font-size: 18px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: background 0.15s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .btn:active { background: #3a3a3a; }
-  #play-btn { min-width: 60px; background: #4a9eff; border-color: #4a9eff; }
-  #play-btn:active { background: #3a8ee0; }
+#top-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+#file-name {
+  font-size: 0.65rem;
+  color: var(--dim);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  letter-spacing: 0.1em;
+}
+#type-badge {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 0.6rem;
+  letter-spacing: 0.2em;
+  color: var(--accent2);
+  padding: 2px 7px;
+  border: 1px solid var(--accent2);
+  white-space: nowrap;
+}
 
-  /* speed buttons */
-  .speed-row {
-    display: flex;
-    gap: 6px;
-    justify-content: center;
-  }
-  .speed-btn {
-    flex: 1;
-    max-width: 72px;
-    min-height: 36px;
-    border-radius: 6px;
-    background: #2a2a2a;
-    color: #aaa;
-    border: 1px solid #3a3a3a;
-    font-size: 13px;
-    cursor: pointer;
-    transition: background 0.15s, color 0.15s;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .speed-btn.active {
-    background: #4a9eff;
-    border-color: #4a9eff;
-    color: #fff;
-  }
-  .speed-btn:active { opacity: 0.8; }
+#media-area {
+  position: relative;
+  background: #000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  max-height: 60vh;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-bottom: none;
+}
+#video-el {
+  max-width: 100%;
+  max-height: 60vh;
+  display: none;
+}
+#canvas-el {
+  max-width: 100%;
+  max-height: 60vh;
+  display: none;
+  image-rendering: pixelated;
+}
 
-  /* loading overlay */
-  #loading {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.7);
-    align-items: center;
-    justify-content: center;
-    flex-direction: column;
-    gap: 12px;
-    font-size: 16px;
-    color: #ccc;
-    z-index: 100;
-  }
-  #loading.visible { display: flex; }
-  .spinner {
-    width: 32px;
-    height: 32px;
-    border: 3px solid #333;
-    border-top-color: #4a9eff;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
+.frame-overlay {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+  background: rgba(0,0,0,0.75);
+  padding: 2px 7px;
+  pointer-events: none;
+}
 
-  /* error toast */
-  #toast {
-    position: fixed;
-    bottom: 80px;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #c0392b;
-    color: #fff;
-    padding: 10px 20px;
-    border-radius: 8px;
-    font-size: 14px;
-    opacity: 0;
-    transition: opacity 0.3s;
-    pointer-events: none;
-    z-index: 200;
-    white-space: nowrap;
-  }
-  #toast.show { opacity: 1; }
+/* ── GIF notice ── */
+.gif-notice {
+  background: #1a1000;
+  border: 1px solid #3a2500;
+  border-top: none;
+  padding: 6px 16px;
+  font-size: 0.6rem;
+  color: #886633;
+  letter-spacing: 0.1em;
+  display: none;
+}
+.gif-notice.show { display: block; }
+
+/* ── Controls ── */
+#controls {
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Scrub row */
+.scrub-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.time-label {
+  font-size: 0.65rem;
+  color: var(--dim);
+  white-space: nowrap;
+  min-width: 76px;
+}
+.time-label-right { text-align: right; }
+
+.scrub-track-wrapper {
+  position: relative;
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.scrub-fill {
+  position: absolute;
+  left: 0;
+  height: 4px;
+  background: var(--accent);
+  pointer-events: none;
+  opacity: 0.4;
+  width: 0%;
+}
+input[type=range] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: var(--scrub);
+  outline: none;
+  cursor: pointer;
+  position: relative;
+}
+input[type=range]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+input[type=range]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  background: var(--accent);
+  cursor: pointer;
+  border: none;
+  clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+}
+
+/* Buttons */
+.btn-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.btn {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  background: #1a1a1a;
+  color: var(--text);
+  border: 1px solid var(--border);
+  padding: 7px 12px;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  min-height: 36px;
+  white-space: nowrap;
+}
+.btn:hover { background: #222; border-color: #444; }
+.btn:active { background: #282800; color: var(--accent); border-color: var(--accent); }
+
+.btn.primary {
+  background: var(--accent);
+  color: #000;
+  border-color: var(--accent);
+  min-width: 90px;
+}
+.btn.primary:hover { background: #ccdd00; }
+.btn.primary:active { background: #aacc00; }
+
+.btn.danger {
+  color: var(--accent2);
+  border-color: var(--accent2);
+}
+.btn.danger:hover { background: #1a0800; }
+
+.btn.loop-active {
+  background: #1a1a00;
+  color: var(--accent);
+  border-color: var(--accent);
+}
+
+.btn-spacer { flex: 1; }
+
+/* Info row */
+.info-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+.info-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.info-label {
+  font-size: 0.55rem;
+  color: var(--dim);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+}
+.info-value {
+  font-size: 0.8rem;
+  color: var(--text);
+  letter-spacing: 0.08em;
+}
+.speed-btns {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.speed-btn {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  padding: 3px 8px;
+  cursor: pointer;
+  transition: all 0.1s;
+  -webkit-tap-highlight-color: transparent;
+}
+.speed-btn:hover { color: var(--text); border-color: #444; }
+.speed-btn.active { background: #222200; color: var(--accent); border-color: var(--accent); }
+
+/* Hints */
+.hints {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding-top: 4px;
+  border-top: 1px solid #1c1c1c;
+}
+.hint { font-size: 0.58rem; color: #3a3a3a; letter-spacing: 0.1em; }
+.hint kbd {
+  background: #1e1e1e;
+  border: 1px solid #2e2e2e;
+  color: #555;
+  padding: 0px 4px;
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.58rem;
+}
+
+/* ── Loading overlay ── */
+#loading {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.88);
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 100;
+}
+#loading.visible { display: flex; }
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid #222;
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+.loading-text {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 0.8rem;
+  letter-spacing: 0.25em;
+  color: var(--dim);
+  text-transform: uppercase;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ── Toast ── */
+#toast {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent2);
+  color: #fff;
+  padding: 9px 18px;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 0.75rem;
+  letter-spacing: 0.15em;
+  opacity: 0;
+  transition: opacity 0.3s;
+  pointer-events: none;
+  z-index: 200;
+  white-space: nowrap;
+}
+#toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 
-<!-- Drop Zone -->
-<div id="drop-zone">
-  <div class="icon">🎬</div>
-  <div class="label">Drop a video or GIF here<br>or tap to browse</div>
-  <div class="sub">MP4 · WebM · MOV · GIF</div>
-  <input type="file" id="file-input" accept="video/*,.gif,image/gif">
-</div>
+<div class="container">
 
-<!-- Player -->
-<div id="player-wrapper">
-  <div id="top-bar">
-    <div id="file-name">—</div>
-    <button id="open-new-btn">Open…</button>
+  <!-- Header (always visible) -->
+  <div class="header">
+    <h1>FRAME</h1>
+    <span class="header-sub">// frame-by-frame inspector</span>
+    <div class="header-right">MP4 · GIF · WEBM · MOV<br>DROP OR CLICK TO LOAD</div>
   </div>
 
-  <div id="media-area">
-    <video id="video-el" preload="auto" playsinline webkit-playsinline></video>
-    <canvas id="canvas-el"></canvas>
+  <!-- Drop Zone -->
+  <div id="drop-zone">
+    <div class="drop-icon">⬡</div>
+    <div class="drop-label">Drop file here</div>
+    <div class="drop-sub">MP4 / GIF / WEBM / MOV · or click to browse</div>
+    <input type="file" id="file-input" accept="video/*,.gif,image/gif">
   </div>
 
-  <div id="controls">
-    <div id="progress-row">
-      <input type="range" id="progress-bar" min="0" value="0" step="1">
-      <div id="frame-info">0 / 0</div>
+  <!-- Player -->
+  <div id="player-wrapper">
+    <div id="top-bar">
+      <div id="file-name">—</div>
+      <div id="type-badge">MP4</div>
     </div>
 
-    <div class="btn-row">
-      <button class="btn" id="first-btn" title="First frame">⏮</button>
-      <button class="btn" id="prev-btn" title="Previous frame">◀</button>
-      <button class="btn" id="play-btn" title="Play / Pause">▶</button>
-      <button class="btn" id="next-btn" title="Next frame">▶</button>
-      <button class="btn" id="last-btn" title="Last frame">⏭</button>
+    <div id="media-area">
+      <video id="video-el" preload="auto" playsinline webkit-playsinline></video>
+      <canvas id="canvas-el"></canvas>
+      <div class="frame-overlay" id="frame-overlay">FRAME 0 / 0 &nbsp;|&nbsp; 0.000s</div>
     </div>
 
-    <div class="speed-row">
-      <button class="speed-btn" data-fps="1">1 fps</button>
-      <button class="speed-btn" data-fps="5">5 fps</button>
-      <button class="speed-btn" data-fps="15">15 fps</button>
-      <button class="speed-btn" data-fps="30">30 fps</button>
-      <button class="speed-btn active" data-fps="normal">Normal</button>
+    <div class="gif-notice" id="gif-notice">
+      ⚠ GIF MODE — frames decoded via gifuct-js. Playback respects native frame delays.
+    </div>
+
+    <div id="controls">
+      <!-- Scrubber -->
+      <div class="scrub-row">
+        <span class="time-label" id="time-label">00:00.000</span>
+        <div class="scrub-track-wrapper">
+          <div class="scrub-fill" id="scrub-fill"></div>
+          <input type="range" id="progress-bar" min="0" max="1000" value="0" step="1">
+        </div>
+        <span class="time-label time-label-right" id="duration-label">00:00.000</span>
+      </div>
+
+      <!-- Main buttons -->
+      <div class="btn-row">
+        <button class="btn" id="first-btn">⏮ FIRST</button>
+        <button class="btn" id="prev-btn">◀◀ PREV</button>
+        <button class="btn primary" id="play-btn">▶ PLAY</button>
+        <button class="btn" id="next-btn">NEXT ▶▶</button>
+        <button class="btn" id="last-btn">LAST ⏭</button>
+        <div class="btn-spacer"></div>
+        <button class="btn" id="step-back-btn">−10</button>
+        <button class="btn" id="step-fwd-btn">+10</button>
+        <button class="btn" id="loop-btn">⟳ LOOP</button>
+        <button class="btn danger" id="open-new-btn">LOAD NEW</button>
+      </div>
+
+      <!-- Speed + info -->
+      <div class="info-row">
+        <div class="info-group">
+          <div class="info-label">Speed</div>
+          <div class="speed-btns">
+            <button class="speed-btn" data-fps="1">1fps</button>
+            <button class="speed-btn" data-fps="5">5fps</button>
+            <button class="speed-btn" data-fps="15">15fps</button>
+            <button class="speed-btn" data-fps="30">30fps</button>
+            <button class="speed-btn active" data-fps="normal">Normal</button>
+          </div>
+        </div>
+        <div class="info-group">
+          <div class="info-label">Frame</div>
+          <div class="info-value" id="frame-num">— / —</div>
+        </div>
+        <div class="info-group">
+          <div class="info-label">FPS (est)</div>
+          <div class="info-value" id="fps-display">—</div>
+        </div>
+        <div class="info-group">
+          <div class="info-label">Resolution</div>
+          <div class="info-value" id="res-display">—</div>
+        </div>
+        <div class="info-group">
+          <div class="info-label">File</div>
+          <div class="info-value" id="file-display" style="font-size:0.65rem;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">—</div>
+        </div>
+      </div>
+
+      <!-- Hints -->
+      <div class="hints">
+        <span class="hint"><kbd>Space</kbd> play/pause</span>
+        <span class="hint"><kbd>←</kbd><kbd>→</kbd> step frame</span>
+        <span class="hint"><kbd>Shift+←</kbd><kbd>Shift+→</kbd> ±10 frames</span>
+        <span class="hint"><kbd>Home</kbd><kbd>End</kbd> first/last</span>
+        <span class="hint"><kbd>L</kbd> loop toggle</span>
+      </div>
     </div>
   </div>
+
 </div>
 
 <!-- Loading overlay -->
 <div id="loading">
   <div class="spinner"></div>
-  <div>Decoding GIF…</div>
+  <div class="loading-text">Decoding GIF…</div>
 </div>
 
-<!-- Error toast -->
+<!-- Toast -->
 <div id="toast"></div>
 
 <script>
 // ─── DOM refs ──────────────────────────────────────────────────────────────
-const dropZone    = document.getElementById('drop-zone');
-const fileInput   = document.getElementById('file-input');
-const playerWrap  = document.getElementById('player-wrapper');
-const fileNameEl  = document.getElementById('file-name');
-const openNewBtn  = document.getElementById('open-new-btn');
-const videoEl     = document.getElementById('video-el');
-const canvasEl    = document.getElementById('canvas-el');
-const progressBar = document.getElementById('progress-bar');
-const frameInfo   = document.getElementById('frame-info');
-const playBtn     = document.getElementById('play-btn');
-const firstBtn    = document.getElementById('first-btn');
-const prevBtn     = document.getElementById('prev-btn');
-const nextBtn     = document.getElementById('next-btn');
-const lastBtn     = document.getElementById('last-btn');
-const speedBtns   = document.querySelectorAll('.speed-btn');
-const loading     = document.getElementById('loading');
-const toast       = document.getElementById('toast');
+const dropZone      = document.getElementById('drop-zone');
+const fileInput     = document.getElementById('file-input');
+const playerWrap    = document.getElementById('player-wrapper');
+const fileNameEl    = document.getElementById('file-name');
+const typeBadge     = document.getElementById('type-badge');
+const openNewBtn    = document.getElementById('open-new-btn');
+const videoEl       = document.getElementById('video-el');
+const canvasEl      = document.getElementById('canvas-el');
+const progressBar   = document.getElementById('progress-bar');
+const scrubFill     = document.getElementById('scrub-fill');
+const timeLabel     = document.getElementById('time-label');
+const durationLabel = document.getElementById('duration-label');
+const frameOverlay  = document.getElementById('frame-overlay');
+const playBtn       = document.getElementById('play-btn');
+const firstBtn      = document.getElementById('first-btn');
+const prevBtn       = document.getElementById('prev-btn');
+const nextBtn       = document.getElementById('next-btn');
+const lastBtn       = document.getElementById('last-btn');
+const stepBackBtn   = document.getElementById('step-back-btn');
+const stepFwdBtn    = document.getElementById('step-fwd-btn');
+const loopBtn       = document.getElementById('loop-btn');
+const speedBtns     = document.querySelectorAll('.speed-btn');
+const frameNumEl    = document.getElementById('frame-num');
+const fpsDisplay    = document.getElementById('fps-display');
+const resDisplay    = document.getElementById('res-display');
+const fileDisplay   = document.getElementById('file-display');
+const gifNotice     = document.getElementById('gif-notice');
+const loading       = document.getElementById('loading');
+const toast         = document.getElementById('toast');
 
 // ─── State ────────────────────────────────────────────────────────────────
 const state = {
-  mode: null,        // 'video' | 'gif'
+  mode: null,          // 'video' | 'gif'
   fps: 30,
   totalFrames: 0,
   currentFrame: 0,
   playing: false,
-  playbackFps: null, // null = native normal; number = manual fps
+  loop: false,
+  playbackFps: null,   // null = native speed; number = manual fps
   intervalId: null,
   objectUrl: null,
   // GIF
@@ -362,36 +596,45 @@ function showToast(msg) {
 
 function formatTime(seconds) {
   const m = Math.floor(seconds / 60);
-  const s = (seconds % 60).toFixed(2).padStart(5, '0');
-  return `${m}:${s}`;
+  const s = seconds % 60;
+  return `${String(m).padStart(2,'0')}:${s.toFixed(3).padStart(6,'0')}`;
 }
 
 function updateUI() {
   const f = state.currentFrame;
   const total = state.totalFrames;
+
   progressBar.max = Math.max(0, total - 1);
   progressBar.value = f;
+  const pct = total > 1 ? (f / (total - 1)) * 100 : 0;
+  scrubFill.style.width = pct + '%';
 
-  let timeStr = '';
+  let t = 0;
   if (state.mode === 'video') {
-    timeStr = ' — ' + formatTime(videoEl.currentTime);
+    t = videoEl.currentTime;
   } else if (state.mode === 'gif' && state.fps > 0) {
-    timeStr = ' — ' + formatTime(f / state.fps);
+    t = f / state.fps;
   }
-  frameInfo.textContent = `${f} / ${total - 1}${timeStr}`;
 
-  playBtn.textContent = state.playing ? '⏸' : '▶';
+  timeLabel.textContent = formatTime(t);
+  frameNumEl.textContent = `${f} / ${total - 1}`;
+  frameOverlay.textContent = `FRAME ${f} / ${total - 1}  |  ${t.toFixed(3)}s`;
+  playBtn.textContent = state.playing ? '⏸ PAUSE' : '▶ PLAY';
 }
 
 function setActiveSpeed(fps) {
   speedBtns.forEach(btn => {
     const v = btn.dataset.fps === 'normal' ? null : Number(btn.dataset.fps);
-    btn.classList.toggle('active',
-      fps === null ? btn.dataset.fps === 'normal' : v === fps);
+    btn.classList.toggle('active', fps === null ? btn.dataset.fps === 'normal' : v === fps);
   });
 }
 
-// ─── Playback core ────────────────────────────────────────────────────────
+function updateLoopBtn() {
+  loopBtn.classList.toggle('loop-active', state.loop);
+  loopBtn.textContent = state.loop ? '⟳ LOOP ON' : '⟳ LOOP';
+}
+
+// ─── Playback core ─────────────────────────────────────────────────────────
 function stopPlayback() {
   state.playing = false;
   clearInterval(state.intervalId);
@@ -407,18 +650,20 @@ function startPlayback() {
 
   if (state.mode === 'video') {
     if (state.playbackFps === null) {
-      // native speed
       videoEl.play().catch(() => {});
     } else {
-      // manual interval
       videoEl.pause();
       const ms = 1000 / state.playbackFps;
       state.intervalId = setInterval(() => {
         if (!state.playing) return;
         const next = videoEl.currentTime + 1 / state.fps;
         if (next >= videoEl.duration) {
-          stopPlayback();
-          seekVideoFrame(state.totalFrames - 1);
+          if (state.loop) {
+            seekVideoToTime(0);
+          } else {
+            stopPlayback();
+            seekVideoFrame(state.totalFrames - 1);
+          }
           return;
         }
         seekVideoToTime(next);
@@ -426,14 +671,23 @@ function startPlayback() {
     }
   } else if (state.mode === 'gif') {
     if (state.playbackFps === null) {
-      // play at native GIF frame delays
       scheduleGifFrame();
     } else {
-      // fixed fps
       const ms = 1000 / state.playbackFps;
       state.intervalId = setInterval(() => {
         if (!state.playing) return;
-        const next = (state.currentFrame + 1) % state.totalFrames;
+        let next = state.currentFrame + 1;
+        if (next >= state.totalFrames) {
+          if (state.loop) {
+            seekGifToFrame(0);
+          } else {
+            clearInterval(state.intervalId);
+            state.playing = false;
+            state.currentFrame = state.totalFrames - 1;
+            updateUI();
+          }
+          return;
+        }
         renderGifFrame(next);
       }, ms);
     }
@@ -444,17 +698,28 @@ function startPlayback() {
 function scheduleGifFrame() {
   if (!state.playing || state.mode !== 'gif') return;
   const frame = state.gifFrames[state.currentFrame];
-  const delay = (frame.delay || 10) * 10; // GIF delay is in 1/100s units
+  const delay = (frame.delay || 10) * 10;
   const ms = Math.max(delay, 20);
   state.gifAnimTimer = setTimeout(() => {
     if (!state.playing) return;
-    const next = (state.currentFrame + 1) % state.totalFrames;
+    let next = state.currentFrame + 1;
+    if (next >= state.totalFrames) {
+      if (state.loop) {
+        seekGifToFrame(0);
+        scheduleGifFrame();
+      } else {
+        state.playing = false;
+        state.currentFrame = state.totalFrames - 1;
+        updateUI();
+      }
+      return;
+    }
     renderGifFrame(next);
     scheduleGifFrame();
   }, ms);
 }
 
-// ─── Video ────────────────────────────────────────────────────────────────
+// ─── Video ─────────────────────────────────────────────────────────────────
 function initVideo(file) {
   state.mode = 'video';
   state.fps = 30;
@@ -467,15 +732,22 @@ function initVideo(file) {
   videoEl.style.display = 'block';
   canvasEl.style.display = 'none';
 
+  typeBadge.textContent = file.name.split('.').pop().toUpperCase();
+  gifNotice.classList.remove('show');
+  resDisplay.textContent = '—';
+  fpsDisplay.textContent = '~30';
+  fileDisplay.textContent = file.name;
+
   videoEl.addEventListener('loadedmetadata', () => {
     state.totalFrames = Math.max(1, Math.round(videoEl.duration * state.fps));
     state.currentFrame = 0;
-    progressBar.max = state.totalFrames - 1;
+    durationLabel.textContent = formatTime(videoEl.duration);
+    resDisplay.textContent = `${videoEl.videoWidth}×${videoEl.videoHeight}`;
     updateUI();
   }, { once: true });
 
   videoEl.addEventListener('timeupdate', () => {
-    if (!state.playing || state.playbackFps !== null) return; // manual mode handles it
+    if (!state.playing || state.playbackFps !== null) return;
     state.currentFrame = Math.min(
       state.totalFrames - 1,
       Math.round(videoEl.currentTime * state.fps)
@@ -484,9 +756,14 @@ function initVideo(file) {
   });
 
   videoEl.addEventListener('ended', () => {
-    stopPlayback();
-    state.currentFrame = state.totalFrames - 1;
-    updateUI();
+    if (state.loop) {
+      videoEl.currentTime = 0;
+      videoEl.play().catch(() => {});
+    } else {
+      stopPlayback();
+      state.currentFrame = state.totalFrames - 1;
+      updateUI();
+    }
   });
 }
 
@@ -504,7 +781,7 @@ function seekVideoFrame(f) {
   seekVideoToTime(f / state.fps);
 }
 
-// ─── GIF ──────────────────────────────────────────────────────────────────
+// ─── GIF ───────────────────────────────────────────────────────────────────
 async function initGif(file) {
   loading.classList.add('visible');
   try {
@@ -523,16 +800,13 @@ async function initGif(file) {
     state.currentFrame = 0;
     state.mode = 'gif';
 
-    // compute average fps from frame delays (delay is in 1/100s units)
     const avgDelay = frames.reduce((s, f) => s + (f.delay || 10), 0) / frames.length;
     state.fps = Math.round(100 / avgDelay) || 10;
 
-    // setup canvas
     canvasEl.width  = state.gifWidth;
     canvasEl.height = state.gifHeight;
     state.gifCtx = canvasEl.getContext('2d');
 
-    // offscreen canvas for disposal type 3
     state.offscreenCanvas = document.createElement('canvas');
     state.offscreenCanvas.width  = state.gifWidth;
     state.offscreenCanvas.height = state.gifHeight;
@@ -540,6 +814,15 @@ async function initGif(file) {
 
     videoEl.style.display = 'none';
     canvasEl.style.display = 'block';
+
+    typeBadge.textContent = 'GIF';
+    gifNotice.classList.add('show');
+
+    const totalMs = frames.reduce((s, f) => s + (f.delay || 10) * 10, 0);
+    durationLabel.textContent = formatTime(totalMs / 1000);
+    resDisplay.textContent = `${state.gifWidth}×${state.gifHeight}`;
+    fpsDisplay.textContent = `~${state.fps}`;
+    fileDisplay.textContent = file.name;
 
     state.currentFrame = -1; // sentinel: no previous frame yet
     seekGifToFrame(0);
@@ -552,40 +835,30 @@ async function initGif(file) {
   }
 }
 
-// Apply the disposal method of `frame` to prepare the canvas for the next frame.
-// disposalType 2 = restore area to background (clear); 3 = restore to previous snapshot.
-// disposalType 0/1 = leave canvas as-is (do nothing).
 function applyGifDisposal(ctx, frame) {
   switch (frame.disposalType) {
     case 2:
       ctx.clearRect(frame.dims.left, frame.dims.top, frame.dims.width, frame.dims.height);
       break;
     case 3:
-      // Restore to state saved before this frame was drawn
       ctx.clearRect(0, 0, state.gifWidth, state.gifHeight);
       ctx.drawImage(state.offscreenCanvas, 0, 0);
       break;
-    // 0, 1: do nothing
   }
 }
 
-// Render the next sequential frame during forward playback.
-// Assumes the canvas is already in the correct composited state from the previous frame.
+// Forward step: composites onto current canvas state (fast path — use only for +1 steps)
 function renderGifFrame(index) {
   const ctx = state.gifCtx;
   const prevFrame = state.currentFrame >= 0 ? state.gifFrames[state.currentFrame] : null;
 
-  // Save canvas snapshot BEFORE applying the previous frame's disposal,
-  // so disposal type 3 on the NEXT frame can restore to this moment.
   if (prevFrame && prevFrame.disposalType === 3) {
     state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
     state.offscreenCtx.drawImage(canvasEl, 0, 0);
   }
 
-  // Apply the previous frame's disposal to prepare canvas for current frame
   if (prevFrame) applyGifDisposal(ctx, prevFrame);
 
-  // Draw current frame patch
   const frame = state.gifFrames[index];
   const imageData = ctx.createImageData(frame.dims.width, frame.dims.height);
   imageData.data.set(frame.patch);
@@ -595,20 +868,16 @@ function renderGifFrame(index) {
   updateUI();
 }
 
-// Seek to an arbitrary frame by replaying from frame 0.
-// Required for backward seeks and progress bar seeks because GIF compositing is cumulative.
+// Arbitrary seek: replays from frame 0 (correct for any seek direction)
 function seekGifToFrame(index) {
   const ctx = state.gifCtx;
   ctx.clearRect(0, 0, state.gifWidth, state.gifHeight);
   state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
 
-  // Replay frames 0..index
-  let savedCtx = null;
   for (let i = 0; i <= index; i++) {
     const frame = state.gifFrames[i];
     const prevFrame = i > 0 ? state.gifFrames[i - 1] : null;
 
-    // Save snapshot before applying disposal (for type 3 support)
     if (prevFrame && prevFrame.disposalType === 3) {
       state.offscreenCtx.clearRect(0, 0, state.gifWidth, state.gifHeight);
       state.offscreenCtx.drawImage(canvasEl, 0, 0);
@@ -625,16 +894,13 @@ function seekGifToFrame(index) {
   updateUI();
 }
 
-// ─── gifuct-js CDN loader ─────────────────────────────────────────────────
+// ─── gifuct-js CDN loader ──────────────────────────────────────────────────
 function ensureGifuct() {
   if (window.gifuct) return Promise.resolve();
   return new Promise((resolve, reject) => {
-    // gifuct-js UMD bundle exposes parseGIF and decompressFrames as globals
-    // We wrap them under window.gifuct for clarity
     const script = document.createElement('script');
     script.src = 'https://cdn.jsdelivr.net/npm/gifuct-js@2.1.2/dist/gifuct-js.js';
     script.onload = () => {
-      // The UMD build exposes parseGIF and decompressFrames globally
       if (typeof parseGIF === 'function' && typeof decompressFrames === 'function') {
         window.gifuct = { parseGIF, decompressFrames };
         resolve();
@@ -647,7 +913,7 @@ function ensureGifuct() {
   });
 }
 
-// ─── File loading ─────────────────────────────────────────────────────────
+// ─── File loading ──────────────────────────────────────────────────────────
 function loadFile(file) {
   if (!file) return;
   stopPlayback();
@@ -670,7 +936,6 @@ function loadFile(file) {
   dropZone.style.display = 'none';
   playerWrap.style.display = 'flex';
 
-  // reset speed to normal
   state.playbackFps = null;
   setActiveSpeed(null);
 
@@ -678,13 +943,11 @@ function loadFile(file) {
   else       initVideo(file);
 }
 
-// ─── Event listeners ──────────────────────────────────────────────────────
+// ─── Event listeners ───────────────────────────────────────────────────────
 
-// File input
+// File input / drop zone
 fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
 dropZone.addEventListener('click', () => fileInput.click());
-
-// Drag and drop
 dropZone.addEventListener('dragover', e => {
   e.preventDefault();
   dropZone.classList.add('drag-over');
@@ -696,8 +959,15 @@ dropZone.addEventListener('drop', e => {
   loadFile(e.dataTransfer.files[0]);
 });
 
-// Open new file
-openNewBtn.addEventListener('click', () => fileInput.click());
+// Load new
+openNewBtn.addEventListener('click', () => {
+  stopPlayback();
+  playerWrap.style.display = 'none';
+  dropZone.style.display = 'flex';
+  fileInput.value = '';
+  state.mode = null;
+  state.gifFrames = [];
+});
 
 // Play / Pause
 playBtn.addEventListener('click', () => {
@@ -705,7 +975,6 @@ playBtn.addEventListener('click', () => {
   if (state.playing) {
     stopPlayback();
   } else {
-    // if at end, restart from beginning
     if (state.currentFrame >= state.totalFrames - 1) {
       if (state.mode === 'video') seekVideoFrame(0);
       else seekGifToFrame(0);
@@ -734,7 +1003,7 @@ prevBtn.addEventListener('click', () => {
   stopPlayback();
   const f = Math.max(0, state.currentFrame - 1);
   if (state.mode === 'video') seekVideoFrame(f);
-  else seekGifToFrame(f); // must replay from 0 — GIF compositing is cumulative
+  else seekGifToFrame(f);
 });
 
 nextBtn.addEventListener('click', () => {
@@ -742,20 +1011,42 @@ nextBtn.addEventListener('click', () => {
   stopPlayback();
   const f = Math.min(state.totalFrames - 1, state.currentFrame + 1);
   if (state.mode === 'video') seekVideoFrame(f);
-  else renderGifFrame(f); // forward step: fast path, canvas already in correct state
+  else renderGifFrame(f); // fast path: +1 forward
 });
 
-// Progress bar seek
-let isSeeking = false;
-progressBar.addEventListener('mousedown', () => { isSeeking = true; stopPlayback(); });
-progressBar.addEventListener('touchstart', () => { isSeeking = true; stopPlayback(); }, { passive: true });
+stepBackBtn.addEventListener('click', () => {
+  if (!state.mode) return;
+  stopPlayback();
+  const f = Math.max(0, state.currentFrame - 10);
+  if (state.mode === 'video') seekVideoFrame(f);
+  else seekGifToFrame(f);
+});
+
+stepFwdBtn.addEventListener('click', () => {
+  if (!state.mode) return;
+  stopPlayback();
+  const f = Math.min(state.totalFrames - 1, state.currentFrame + 10);
+  if (state.mode === 'video') seekVideoFrame(f);
+  else seekGifToFrame(f);
+});
+
+// Loop toggle
+loopBtn.addEventListener('click', () => {
+  state.loop = !state.loop;
+  updateLoopBtn();
+});
+
+// Progress bar
+progressBar.addEventListener('mousedown', () => stopPlayback());
+progressBar.addEventListener('touchstart', () => stopPlayback(), { passive: true });
 progressBar.addEventListener('input', () => {
   if (!state.mode) return;
   const f = parseInt(progressBar.value);
+  const pct = state.totalFrames > 1 ? (f / (state.totalFrames - 1)) * 100 : 0;
+  scrubFill.style.width = pct + '%';
   if (state.mode === 'video') seekVideoFrame(f);
-  else seekGifToFrame(f); // arbitrary seek always replays from 0
+  else seekGifToFrame(f);
 });
-progressBar.addEventListener('change', () => { isSeeking = false; });
 
 // Speed buttons
 speedBtns.forEach(btn => {
@@ -763,22 +1054,20 @@ speedBtns.forEach(btn => {
     const val = btn.dataset.fps;
     state.playbackFps = val === 'normal' ? null : Number(val);
     setActiveSpeed(state.playbackFps);
-
-    // If currently playing, restart with new speed
     if (state.playing) {
       stopPlayback();
       startPlayback();
     } else if (state.mode === 'video' && state.playbackFps === null) {
-      // Ensure video is paused when switching back to normal while stopped
       videoEl.pause();
     }
   });
 });
 
-// Keyboard shortcuts (desktop)
+// Keyboard shortcuts
 document.addEventListener('keydown', e => {
   if (!state.mode) return;
-  if (e.target.tagName === 'INPUT') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+
   switch (e.key) {
     case ' ':
     case 'k':
@@ -786,14 +1075,14 @@ document.addEventListener('keydown', e => {
       playBtn.click();
       break;
     case 'ArrowLeft':
-    case 'j':
       e.preventDefault();
-      prevBtn.click();
+      if (e.shiftKey) stepBackBtn.click();
+      else prevBtn.click();
       break;
     case 'ArrowRight':
-    case 'l':
       e.preventDefault();
-      nextBtn.click();
+      if (e.shiftKey) stepFwdBtn.click();
+      else nextBtn.click();
       break;
     case 'Home':
       e.preventDefault();
@@ -803,20 +1092,12 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       lastBtn.click();
       break;
+    case 'l':
+    case 'L':
+      loopBtn.click();
+      break;
   }
 });
-
-// Style the next-frame button to distinguish from play
-nextBtn.innerHTML = '▶';
-nextBtn.style.fontSize = '14px';
-nextBtn.innerHTML = '▶<sub style="font-size:9px;vertical-align:sub">1</sub>';
-
-// Better icons using Unicode
-firstBtn.textContent = '⏮';
-prevBtn.textContent = '⏪';
-playBtn.textContent = '▶';
-nextBtn.textContent = '⏩';
-lastBtn.textContent = '⏭';
 </script>
 </body>
 </html>
