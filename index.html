@@ -372,6 +372,23 @@ input[type=range]::-moz-range-thumb {
 .speed-btn:hover { color: var(--text); border-color: #444; }
 .speed-btn.active { background: #222200; color: var(--accent); border-color: var(--accent); }
 
+.fps-input {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  background: #1a1a1a;
+  border: 1px solid var(--border);
+  color: var(--dim);
+  padding: 3px 6px;
+  width: 52px;
+  outline: none;
+  text-align: center;
+  -moz-appearance: textfield;
+}
+.fps-input::-webkit-inner-spin-button,
+.fps-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.fps-input:focus { border-color: #444; color: var(--text); }
+.fps-input.active { background: #222200; color: var(--accent); border-color: var(--accent); }
+
 /* Hints */
 .hints {
   display: flex;
@@ -516,7 +533,7 @@ input[type=range]::-moz-range-thumb {
             <button class="speed-btn" data-fps="1">1fps</button>
             <button class="speed-btn" data-fps="5">5fps</button>
             <button class="speed-btn" data-fps="15">15fps</button>
-            <button class="speed-btn" data-fps="30">30fps</button>
+            <input class="fps-input" id="custom-fps" type="number" min="1" max="240" placeholder="fps" title="Custom FPS — press Enter">
             <button class="speed-btn active" data-fps="normal">Normal</button>
           </div>
         </div>
@@ -584,6 +601,7 @@ const stepBackBtn   = document.getElementById('step-back-btn');
 const stepFwdBtn    = document.getElementById('step-fwd-btn');
 const loopBtn       = document.getElementById('loop-btn');
 const speedBtns     = document.querySelectorAll('.speed-btn');
+const customFpsInput = document.getElementById('custom-fps');
 const frameNumEl    = document.getElementById('frame-num');
 const fpsDisplay    = document.getElementById('fps-display');
 const resDisplay    = document.getElementById('res-display');
@@ -651,8 +669,14 @@ function updateUI() {
 function setActiveSpeed(fps) {
   speedBtns.forEach(btn => {
     const v = btn.dataset.fps === 'normal' ? null : Number(btn.dataset.fps);
-    btn.classList.toggle('active', fps === null ? btn.dataset.fps === 'normal' : v === fps);
+    const match = fps === null ? btn.dataset.fps === 'normal' : v === fps;
+    btn.classList.toggle('active', match);
   });
+  // Custom fps input: highlight when active fps isn't one of the preset buttons
+  const presets = [null, 1, 5, 15];
+  const isCustom = fps !== null && !presets.includes(fps);
+  customFpsInput.classList.toggle('active', isCustom);
+  if (!isCustom) customFpsInput.value = '';
 }
 
 function updateLoopBtn() {
@@ -1219,6 +1243,21 @@ speedBtns.forEach(btn => {
     }
   });
 });
+
+// Custom FPS input
+function applyCustomFps() {
+  const val = parseInt(customFpsInput.value);
+  if (!val || val < 1) return;
+  const fps = Math.min(val, 240);
+  state.playbackFps = fps;
+  setActiveSpeed(fps);
+  if (state.playing) { stopPlayback(); startPlayback(); }
+}
+customFpsInput.addEventListener('keydown', e => {
+  e.stopPropagation(); // don't trigger keyboard shortcuts
+  if (e.key === 'Enter') { customFpsInput.blur(); applyCustomFps(); }
+});
+customFpsInput.addEventListener('click', e => e.stopPropagation());
 
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
