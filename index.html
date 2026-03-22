@@ -723,13 +723,17 @@ function startPlayback() {
         const seekTarget = state.currentFrame / state.fps + 1 / state.fps;
         if (seekTarget >= videoEl.duration) {
           if (state.loop) {
-            seekVideoToTime(0);
+            // Attach seeked BEFORE setting currentTime to avoid missing the event
             nextFrameAt = performance.now() + frameInterval;
             seekedHandler = () => {
               if (!state.playing) return;
+              state.currentFrame = 0;
+              updateUI();
               state.intervalId = setTimeout(step, Math.max(0, nextFrameAt - performance.now()));
             };
             videoEl.addEventListener('seeked', seekedHandler, { once: true });
+            videoEl.pause();
+            videoEl.currentTime = 0;
           } else {
             stopPlayback();
             seekVideoFrame(state.totalFrames - 1);
@@ -1316,6 +1320,9 @@ document.addEventListener('keydown', e => {
       break;
   }
 });
+
+// Init UI state
+updateLoopBtn();
 </script>
 </body>
 </html>
