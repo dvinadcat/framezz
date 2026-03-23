@@ -207,9 +207,6 @@ body {
 .history-chip:hover .chip-remove { opacity: 1; }
 .history-chip.active .chip-remove { opacity: 0.4; }
 .history-chip:hover .chip-remove:hover { color: var(--accent2); opacity: 1; }
-.history-chip.closed { opacity: 0.3; }
-.history-chip.closed:hover { opacity: 0.55; }
-.history-chip.closed .chip-remove { display: none; }
 #add-media-btn {
   display: flex;
   align-items: center;
@@ -236,11 +233,49 @@ body {
   border: 1px solid var(--border);
   padding: 6px 8px;
   gap: 5px;
-  flex-direction: row;
-  align-items: center;
+  flex-direction: column;
   min-width: 300px;
 }
 #add-flyout.visible { display: flex; }
+.flyout-row {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+.flyout-row > input { flex: 1; }
+#flyout-recent { display: flex; flex-direction: column; gap: 2px; }
+#flyout-recent-label {
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  color: var(--dim);
+  padding: 2px 0;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 1px;
+}
+.recent-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px;
+  cursor: pointer;
+  font-size: 0.58rem;
+  color: var(--dim);
+  white-space: nowrap;
+  overflow: hidden;
+}
+.recent-item:hover { background: rgba(255,255,255,0.04); color: var(--text); }
+.recent-item .chip-ext {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-weight: 700;
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
+  color: var(--accent2);
+  border: 1px solid var(--accent2);
+  padding: 0 3px;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+.recent-item-name { overflow: hidden; text-overflow: ellipsis; flex: 1; }
 #flyout-url-input {
   flex: 1;
   background: var(--bg);
@@ -639,8 +674,11 @@ input[type=range]::-moz-range-thumb {
       <div id="history-list"></div>
       <button id="add-media-btn" title="Add media (or paste URL with Ctrl+V)">+</button>
       <div id="add-flyout">
-        <input type="text" id="flyout-url-input" placeholder="paste url…" autocomplete="off" spellcheck="false">
-        <label for="file-input" class="btn" id="flyout-file-btn">FILE</label>
+        <div class="flyout-row">
+          <input type="text" id="flyout-url-input" placeholder="paste url…" autocomplete="off" spellcheck="false">
+          <label for="file-input" class="btn" id="flyout-file-btn">FILE</label>
+        </div>
+        <div id="flyout-recent"></div>
       </div>
       <!-- kept for JS refs -->
       <div id="file-name" style="display:none">—</div>
@@ -791,18 +829,17 @@ const addFlyout     = document.getElementById('add-flyout');
 const flyoutUrlInput = document.getElementById('flyout-url-input');
 
 // ─── Session history ────────────────────────────────────────────────────────
-const sessionHistory = [];   // [{id, name, ext, url, file}]
-const closedIds      = new Set(); // chips dismissed via × but kept for reopening
-let   historyIdSeq   = 0;
+const sessionHistory  = [];   // [{id, name, ext, url, file}]
+const recentlyClosed  = [];   // items removed via ×, shown in flyout for reopen
+let   historyIdSeq    = 0;
 let   activeHistoryId = -1;
 
 function renderHistory() {
   historyListEl.innerHTML = '';
   sessionHistory.forEach(item => {
-    const isClosed = closedIds.has(item.id);
     const isActive = item.id === activeHistoryId;
     const chip = document.createElement('div');
-    chip.className = 'history-chip' + (isActive ? ' active' : '') + (isClosed ? ' closed' : '');
+    chip.className = 'history-chip' + (isActive ? ' active' : '');
     chip.dataset.id = item.id;
     const nameSpan = document.createElement('span');
     nameSpan.textContent = item.name;
@@ -812,19 +849,14 @@ function renderHistory() {
     const removeBtn = document.createElement('span');
     removeBtn.className = 'chip-remove';
     removeBtn.textContent = '×';
-    removeBtn.title = 'Remove from history';
+    removeBtn.title = 'Remove (reopen via +)';
     removeBtn.addEventListener('click', e => {
       e.stopPropagation();
-      if (isActive) {
-        // mark closed but keep in list — chip stays greyed-out and clickable
-        closedIds.add(item.id);
-        activeHistoryId = -1;
-      } else {
-        // fully remove inactive chips
-        const idx = sessionHistory.findIndex(h => h.id === item.id);
-        if (idx !== -1) sessionHistory.splice(idx, 1);
-        closedIds.delete(item.id);
-      }
+      const idx = sessionHistory.findIndex(h => h.id === item.id);
+      if (idx !== -1) sessionHistory.splice(idx, 1);
+      if (activeHistoryId === item.id) activeHistoryId = -1;
+      // keep for reopen — push to front of recently closed
+      recentlyClosed.unshift(item);
       renderHistory();
     });
     chip.appendChild(nameSpan);
@@ -833,9 +865,39 @@ function renderHistory() {
     chip.addEventListener('click', () => loadFromHistory(item.id));
     historyListEl.appendChild(chip);
   });
-  // scroll active chip into view
   const active = historyListEl.querySelector('.history-chip.active');
   if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  renderFlyoutRecent();
+}
+
+function renderFlyoutRecent() {
+  const el = document.getElementById('flyout-recent');
+  if (!el) return;
+  el.innerHTML = '';
+  if (!recentlyClosed.length) return;
+  const label = document.createElement('div');
+  label.id = 'flyout-recent-label';
+  label.textContent = 'RECENTLY CLOSED';
+  el.appendChild(label);
+  recentlyClosed.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'recent-item';
+    const ext = document.createElement('span');
+    ext.className = 'chip-ext';
+    ext.textContent = item.ext;
+    const name = document.createElement('span');
+    name.className = 'recent-item-name';
+    name.textContent = item.name;
+    row.appendChild(ext);
+    row.appendChild(name);
+    row.addEventListener('click', () => {
+      recentlyClosed.splice(recentlyClosed.indexOf(item), 1);
+      sessionHistory.push(item);
+      closeFlyout();
+      loadFromHistory(item.id);
+    });
+    el.appendChild(row);
+  });
 }
 
 function addToHistory(name, ext, url, file) {
@@ -853,7 +915,6 @@ function addToHistory(name, ext, url, file) {
 function loadFromHistory(id) {
   const item = sessionHistory.find(h => h.id === id);
   if (!item) return;
-  closedIds.delete(id);
   activeHistoryId = id;
   renderHistory();
   if (item.url)  { loadFromUrl(item.url, false); }
@@ -1549,7 +1610,7 @@ function closeFlyout() {
 addMediaBtn.addEventListener('click', e => {
   e.stopPropagation();
   addFlyout.classList.toggle('visible');
-  if (addFlyout.classList.contains('visible')) flyoutUrlInput.focus();
+  if (addFlyout.classList.contains('visible')) { renderFlyoutRecent(); flyoutUrlInput.focus(); }
 });
 flyoutUrlInput.addEventListener('keydown', e => {
   e.stopPropagation();
