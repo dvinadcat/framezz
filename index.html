@@ -1524,6 +1524,7 @@ addDragScrub(outFrameInput,
 // Speed buttons
 speedBtns.forEach(btn => {
   btn.addEventListener('click', () => {
+    videoEl.playbackRate = 1;
     const val = btn.dataset.fps;
     state.playbackFps = val === 'normal' ? null : Number(val);
     setActiveSpeed(state.playbackFps);
@@ -1541,6 +1542,21 @@ function applyCustomFps() {
   const val = parseInt(customFpsInput.value);
   if (!val || val < 1) return;
   const fps = Math.min(val, 240);
+
+  // For video, use playbackRate for any fps achievable natively (avoids
+  // slow seek-based stepping that halves effective rate near native speed).
+  if (state.mode === 'video' && state.fps > 0) {
+    const rate = fps / state.fps;
+    if (rate >= 0.0625) {
+      videoEl.playbackRate = rate;
+      state.playbackFps = null; // use native playback path
+      setActiveSpeed(fps);
+      if (state.playing) { stopPlayback(); startPlayback(); }
+      return;
+    }
+  }
+
+  videoEl.playbackRate = 1;
   state.playbackFps = fps;
   setActiveSpeed(fps);
   if (state.playing) { stopPlayback(); startPlayback(); }
