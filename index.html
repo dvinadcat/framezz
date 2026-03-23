@@ -815,6 +815,11 @@ function stopPlayback() {
 }
 
 function startPlayback() {
+  // If playhead is outside the in/out range, snap it to inFrame
+  if (state.currentFrame < state.inFrame || state.currentFrame > state.outFrame) {
+    state.currentFrame = state.inFrame;
+    if (state.mode === 'video') videoEl.currentTime = state.inFrame / state.fps;
+  }
   state.playing = true;
   state.playSession = (state.playSession || 0) + 1;
 
