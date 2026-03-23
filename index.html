@@ -805,7 +805,7 @@ function renderHistory() {
     extSpan.textContent = item.ext;
     const removeBtn = document.createElement('span');
     removeBtn.className = 'chip-remove';
-    removeBtn.textContent = '−';
+    removeBtn.textContent = '×';
     removeBtn.title = 'Remove from history';
     removeBtn.addEventListener('click', e => {
       e.stopPropagation();
