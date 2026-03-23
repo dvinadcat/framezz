@@ -597,6 +597,7 @@ input[type=range]::-moz-range-thumb {
         <button class="btn" id="next-btn">NEXT &gt;&gt;</button>
         <button class="btn" id="last-btn">LAST &gt;|</button>
         <div class="btn-spacer"></div>
+        <button class="btn" id="mute-btn">🔇</button>
         <button class="btn" id="loop-btn">~ LOOP</button>
         <button class="btn danger" id="open-new-btn">LOAD NEW</button>
       </div>
@@ -674,6 +675,7 @@ const firstBtn      = document.getElementById('first-btn');
 const prevBtn       = document.getElementById('prev-btn');
 const nextBtn       = document.getElementById('next-btn');
 const lastBtn       = document.getElementById('last-btn');
+const muteBtn       = document.getElementById('mute-btn');
 const loopBtn       = document.getElementById('loop-btn');
 const speedBtns     = document.querySelectorAll('.speed-btn');
 const customFpsInput = document.getElementById('custom-fps');
@@ -703,6 +705,7 @@ const state = {
   outFrame: 0,         // inclusive end of play range
   playing: false,
   loop: true,
+  muted: true,
   playbackFps: null,   // null = native speed; number = manual fps
   intervalId: null,
   objectUrl: null,
@@ -1409,6 +1412,14 @@ nextBtn.addEventListener('click', () => {
   seekFrameKeepPlaying(Math.min(state.totalFrames - 1, state.currentFrame + 1));
 });
 
+
+// Mute toggle
+videoEl.muted = state.muted;
+muteBtn.addEventListener('click', () => {
+  state.muted = !state.muted;
+  videoEl.muted = state.muted;
+  muteBtn.textContent = state.muted ? '🔇' : '🔊';
+});
 
 // Loop toggle
 loopBtn.addEventListener('click', () => {
