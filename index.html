@@ -275,32 +275,23 @@ body {
 .range-handle {
   position: absolute;
   top: 50%;
-  width: 5px;
-  height: 26px;
+  width: 14px;
+  height: 28px;
   cursor: ew-resize;
   z-index: 2;
   touch-action: none;
-  background: var(--accent2);
-}
-.range-handle::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  width: 12px;
-  height: 5px;
-  background: var(--accent2);
+  background: transparent;
+  box-sizing: border-box;
 }
 .in-handle {
   transform: translateY(-50%);
-}
-.in-handle::before {
-  left: 0;
+  border-left: 5px solid var(--accent2);
+  border-top: 5px solid var(--accent2);
 }
 .out-handle {
   transform: translateY(-50%) translateX(-100%);
-}
-.out-handle::before {
-  right: 0;
+  border-right: 5px solid var(--accent2);
+  border-top: 5px solid var(--accent2);
 }
 .range-row {
   display: flex;
