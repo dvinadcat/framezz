@@ -205,7 +205,7 @@ body {
   flex-shrink: 0;
 }
 .history-chip:hover .chip-remove { opacity: 1; }
-.history-chip.active .chip-remove { display: none; }
+.history-chip.active .chip-remove { opacity: 0.4; }
 .history-chip:hover .chip-remove:hover { color: var(--accent2); opacity: 1; }
 #add-media-btn {
   display: flex;
@@ -809,9 +809,13 @@ function renderHistory() {
     removeBtn.title = 'Remove from history';
     removeBtn.addEventListener('click', e => {
       e.stopPropagation();
-      const idx = sessionHistory.findIndex(h => h.id === item.id);
-      if (idx !== -1) sessionHistory.splice(idx, 1);
-      if (activeHistoryId === item.id) activeHistoryId = sessionHistory.length ? sessionHistory[sessionHistory.length - 1].id : -1;
+      if (activeHistoryId === item.id) {
+        // just deactivate — keep in list so it can be reopened
+        activeHistoryId = -1;
+      } else {
+        const idx = sessionHistory.findIndex(h => h.id === item.id);
+        if (idx !== -1) sessionHistory.splice(idx, 1);
+      }
       renderHistory();
     });
     chip.appendChild(nameSpan);
