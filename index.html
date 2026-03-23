@@ -261,6 +261,35 @@ body {
   opacity: 0.4;
   width: 0%;
 }
+.range-fill {
+  position: absolute;
+  height: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: var(--accent2);
+  opacity: 0.3;
+  pointer-events: none;
+  left: 0%;
+  width: 100%;
+}
+.range-handle {
+  position: absolute;
+  top: 50%;
+  width: 12px;
+  height: 20px;
+  cursor: ew-resize;
+  z-index: 2;
+  touch-action: none;
+  background: var(--accent2);
+}
+.in-handle {
+  transform: translateY(-50%);
+  clip-path: polygon(0 0, 55% 0, 100% 50%, 55% 100%, 0 100%);
+}
+.out-handle {
+  transform: translateY(-50%) translateX(-100%);
+  clip-path: polygon(100% 0, 45% 0, 0 50%, 45% 100%, 100% 100%);
+}
 input[type=range] {
   -webkit-appearance: none;
   appearance: none;
@@ -518,7 +547,10 @@ input[type=range]::-moz-range-thumb {
         <span class="time-label" id="time-label">00:00.000</span>
         <div class="scrub-track-wrapper">
           <div class="scrub-fill" id="scrub-fill"></div>
+          <div class="range-fill" id="range-fill"></div>
           <input type="range" id="progress-bar" min="0" max="1000" value="0" step="1">
+          <div class="range-handle in-handle" id="in-handle" title="In point — drag or press I"></div>
+          <div class="range-handle out-handle" id="out-handle" title="Out point — drag or press O"></div>
         </div>
         <span class="time-label time-label-right" id="duration-label">00:00.000</span>
       </div>
@@ -571,6 +603,7 @@ input[type=range]::-moz-range-thumb {
         <span class="hint"><kbd>←</kbd><kbd>→</kbd> step frame</span>
         <span class="hint"><kbd>Shift+←</kbd><kbd>Shift+→</kbd> ±10 frames</span>
         <span class="hint"><kbd>Home</kbd><kbd>End</kbd> first/last</span>
+        <span class="hint"><kbd>I</kbd> set in &nbsp;<kbd>O</kbd> set out</span>
         <span class="hint"><kbd>L</kbd> loop toggle</span>
       </div>
     </div>
@@ -619,6 +652,10 @@ const loading       = document.getElementById('loading');
 const toast         = document.getElementById('toast');
 const urlInput      = document.getElementById('url-input');
 const urlLoadBtn    = document.getElementById('url-load-btn');
+const inHandle      = document.getElementById('in-handle');
+const outHandle     = document.getElementById('out-handle');
+const rangeFill     = document.getElementById('range-fill');
+const scrubTrackWrapper = document.querySelector('.scrub-track-wrapper');
 
 // ─── State ────────────────────────────────────────────────────────────────
 const state = {
@@ -626,6 +663,8 @@ const state = {
   fps: 30,
   totalFrames: 0,
   currentFrame: 0,
+  inFrame: 0,          // inclusive start of play range
+  outFrame: 0,         // inclusive end of play range
   playing: false,
   loop: true,
   playbackFps: null,   // null = native speed; number = manual fps
@@ -672,6 +711,7 @@ function updateUI() {
   frameNumEl.textContent = `${f} / ${total - 1}`;
   frameOverlay.textContent = `FRAME ${f} / ${total - 1}  |  ${t.toFixed(3)}s`;
   playBtn.textContent = state.playing ? '|| PAUSE' : '> PLAY';
+  updateRangeHandles();
 }
 
 function setActiveSpeed(fps) {
@@ -685,6 +725,17 @@ function setActiveSpeed(fps) {
   const isCustom = fps !== null && !presets.includes(fps);
   customFpsInput.classList.toggle('active', isCustom);
   if (!isCustom) customFpsInput.value = '';
+}
+
+function updateRangeHandles() {
+  const total = state.totalFrames - 1;
+  if (total <= 0) return;
+  const inPct  = (state.inFrame  / total) * 100;
+  const outPct = (state.outFrame / total) * 100;
+  inHandle.style.left  = inPct  + '%';
+  outHandle.style.left = outPct + '%';
+  rangeFill.style.left  = inPct  + '%';
+  rangeFill.style.width = (outPct - inPct) + '%';
 }
 
 function updateLoopBtn() {
@@ -753,6 +804,24 @@ function startPlayback() {
         };
         videoEl.addEventListener('timeupdate', tu);
       }
+      // Enforce out-point during native playback
+      const rangeCheck = () => {
+        if (!state.playing || state.playSession !== session || state.playbackFps !== null) {
+          videoEl.removeEventListener('timeupdate', rangeCheck);
+          return;
+        }
+        if (videoEl.currentTime >= (state.outFrame + 1) / state.fps) {
+          videoEl.removeEventListener('timeupdate', rangeCheck);
+          if (state.loop) {
+            videoEl.currentTime = state.inFrame / state.fps;
+            videoEl.play().catch(() => {});
+          } else {
+            stopPlayback();
+            seekVideoFrame(state.outFrame);
+          }
+        }
+      };
+      videoEl.addEventListener('timeupdate', rangeCheck);
       videoEl.play().catch(() => {});
     } else {
       // Use seeked-event-driven approach: wait for each seek to complete
@@ -768,12 +837,13 @@ function startPlayback() {
         if (!alive()) return;
 
         const seekTarget = state.currentFrame / state.fps + 1 / state.fps;
-        if (seekTarget >= videoEl.duration) {
+        const rangeEnd = (state.outFrame + 1) / state.fps;
+        if (seekTarget >= Math.min(videoEl.duration, rangeEnd)) {
           if (state.loop) {
             // Update currentFrame synchronously before the seek so state
             // stays in sync with the video element even if playback stops
             // before the async seeked event fires.
-            state.currentFrame = 0;
+            state.currentFrame = state.inFrame;
             updateUI();
             nextFrameAt = performance.now() + frameInterval;
             videoEl.addEventListener('seeked', () => {
@@ -782,10 +852,10 @@ function startPlayback() {
               state.intervalId = setTimeout(step, Math.max(0, nextFrameAt - performance.now()));
             }, { once: true });
             videoEl.pause();
-            videoEl.currentTime = 0;
+            videoEl.currentTime = state.inFrame / state.fps;
           } else {
             stopPlayback();
-            seekVideoFrame(state.totalFrames - 1);
+            seekVideoFrame(state.outFrame);
           }
           return;
         }
@@ -813,13 +883,13 @@ function startPlayback() {
       state.intervalId = setInterval(() => {
         if (!state.playing) return;
         let next = state.currentFrame + 1;
-        if (next >= state.totalFrames) {
+        if (next > state.outFrame) {
           if (state.loop) {
-            seekGifToFrame(0);
+            seekGifToFrame(state.inFrame);
           } else {
             clearInterval(state.intervalId);
             state.playing = false;
-            state.currentFrame = state.totalFrames - 1;
+            state.currentFrame = state.outFrame;
             updateUI();
           }
           return;
@@ -838,13 +908,13 @@ function scheduleGifFrame() {
   state.gifAnimTimer = setTimeout(() => {
     if (!state.playing) return;
     let next = state.currentFrame + 1;
-    if (next >= state.totalFrames) {
+    if (next > state.outFrame) {
       if (state.loop) {
-        seekGifToFrame(0);
+        seekGifToFrame(state.inFrame);
         scheduleGifFrame();
       } else {
         state.playing = false;
-        state.currentFrame = state.totalFrames - 1;
+        state.currentFrame = state.outFrame;
         updateUI();
       }
       return;
@@ -881,6 +951,8 @@ function initVideo(src, name) {
   videoEl.addEventListener('loadedmetadata', () => {
     state.totalFrames = Math.max(1, Math.round(videoEl.duration * state.fps));
     state.currentFrame = 0;
+    state.inFrame  = 0;
+    state.outFrame = state.totalFrames - 1;
     durationLabel.textContent = formatTime(videoEl.duration);
     resDisplay.textContent = `${videoEl.videoWidth}×${videoEl.videoHeight}`;
     canvasEl.width = videoEl.videoWidth;
@@ -903,11 +975,11 @@ function initVideo(src, name) {
     // Only handle natural end during native (non-fixed-fps) playback
     if (!state.playing || state.playbackFps !== null) return;
     if (state.loop) {
-      videoEl.currentTime = 0;
+      videoEl.currentTime = state.inFrame / state.fps;
       videoEl.play().catch(() => {});
     } else {
       stopPlayback();
-      state.currentFrame = state.totalFrames - 1;
+      state.currentFrame = state.outFrame;
       updateUI();
     }
   });
@@ -935,6 +1007,8 @@ function setupGifState(frames, width, height, name) {
   state.gifHeight = height;
   state.totalFrames = frames.length;
   state.currentFrame = 0;
+  state.inFrame  = 0;
+  state.outFrame = frames.length - 1;
   state.mode = 'gif';
 
   const avgDelay = frames.reduce((s, f) => s + f.delay, 0) / frames.length;
@@ -1304,6 +1378,31 @@ progressBar.addEventListener('input', () => {
   else seekGifToFrame(f);
 });
 
+// In/Out handle drag
+let draggingHandle = null;
+
+function handleDragMove(clientX) {
+  if (!draggingHandle || !state.totalFrames) return;
+  const rect = scrubTrackWrapper.getBoundingClientRect();
+  const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  const f = Math.round(pct * (state.totalFrames - 1));
+  if (draggingHandle === 'in') {
+    state.inFrame = Math.max(0, Math.min(f, state.outFrame - 1));
+  } else {
+    state.outFrame = Math.max(state.inFrame + 1, Math.min(f, state.totalFrames - 1));
+  }
+  updateRangeHandles();
+}
+
+inHandle.addEventListener('mousedown', e => { draggingHandle = 'in';  e.preventDefault(); });
+outHandle.addEventListener('mousedown', e => { draggingHandle = 'out'; e.preventDefault(); });
+inHandle.addEventListener('touchstart', e => { draggingHandle = 'in';  e.preventDefault(); }, { passive: false });
+outHandle.addEventListener('touchstart', e => { draggingHandle = 'out'; e.preventDefault(); }, { passive: false });
+document.addEventListener('mousemove', e => { if (draggingHandle) handleDragMove(e.clientX); });
+document.addEventListener('touchmove', e => { if (draggingHandle) handleDragMove(e.touches[0].clientX); }, { passive: true });
+document.addEventListener('mouseup',  () => { draggingHandle = null; });
+document.addEventListener('touchend', () => { draggingHandle = null; });
+
 // Speed buttons
 speedBtns.forEach(btn => {
   btn.addEventListener('click', () => {
@@ -1370,6 +1469,16 @@ document.addEventListener('keydown', e => {
     case 'l':
     case 'L':
       loopBtn.click();
+      break;
+    case 'i':
+      if (!state.mode) break;
+      state.inFrame = Math.min(state.currentFrame, state.outFrame - 1);
+      updateRangeHandles();
+      break;
+    case 'o':
+      if (!state.mode) break;
+      state.outFrame = Math.max(state.currentFrame, state.inFrame + 1);
+      updateRangeHandles();
       break;
   }
 });
