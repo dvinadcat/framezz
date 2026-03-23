@@ -841,6 +841,8 @@ function initVideo(src, name) {
   });
 
   videoEl.addEventListener('ended', () => {
+    // Only handle natural end during native (non-fixed-fps) playback
+    if (!state.playing || state.playbackFps !== null) return;
     if (state.loop) {
       videoEl.currentTime = 0;
       videoEl.play().catch(() => {});
