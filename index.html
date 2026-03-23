@@ -207,6 +207,9 @@ body {
 .history-chip:hover .chip-remove { opacity: 1; }
 .history-chip.active .chip-remove { opacity: 0.4; }
 .history-chip:hover .chip-remove:hover { color: var(--accent2); opacity: 1; }
+.history-chip.closed { opacity: 0.3; }
+.history-chip.closed:hover { opacity: 0.55; }
+.history-chip.closed .chip-remove { display: none; }
 #add-media-btn {
   display: flex;
   align-items: center;
@@ -789,14 +792,17 @@ const flyoutUrlInput = document.getElementById('flyout-url-input');
 
 // ─── Session history ────────────────────────────────────────────────────────
 const sessionHistory = [];   // [{id, name, ext, url, file}]
+const closedIds      = new Set(); // chips dismissed via × but kept for reopening
 let   historyIdSeq   = 0;
 let   activeHistoryId = -1;
 
 function renderHistory() {
   historyListEl.innerHTML = '';
   sessionHistory.forEach(item => {
+    const isClosed = closedIds.has(item.id);
+    const isActive = item.id === activeHistoryId;
     const chip = document.createElement('div');
-    chip.className = 'history-chip' + (item.id === activeHistoryId ? ' active' : '');
+    chip.className = 'history-chip' + (isActive ? ' active' : '') + (isClosed ? ' closed' : '');
     chip.dataset.id = item.id;
     const nameSpan = document.createElement('span');
     nameSpan.textContent = item.name;
@@ -809,12 +815,15 @@ function renderHistory() {
     removeBtn.title = 'Remove from history';
     removeBtn.addEventListener('click', e => {
       e.stopPropagation();
-      if (activeHistoryId === item.id) {
-        // just deactivate — keep in list so it can be reopened
+      if (isActive) {
+        // mark closed but keep in list — chip stays greyed-out and clickable
+        closedIds.add(item.id);
         activeHistoryId = -1;
       } else {
+        // fully remove inactive chips
         const idx = sessionHistory.findIndex(h => h.id === item.id);
         if (idx !== -1) sessionHistory.splice(idx, 1);
+        closedIds.delete(item.id);
       }
       renderHistory();
     });
@@ -844,6 +853,7 @@ function addToHistory(name, ext, url, file) {
 function loadFromHistory(id) {
   const item = sessionHistory.find(h => h.id === id);
   if (!item) return;
+  closedIds.delete(id);
   activeHistoryId = id;
   renderHistory();
   if (item.url)  { loadFromUrl(item.url, false); }
