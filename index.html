@@ -315,18 +315,6 @@ body {
   display: none;
   image-rendering: pixelated;
 }
-#yt-container {
-  display: none;
-  width: 100%;
-  aspect-ratio: 16 / 9;
-  max-height: 60vh;
-}
-#yt-container iframe {
-  width: 100%;
-  height: 100%;
-  border: none;
-  display: block;
-}
 
 .frame-overlay {
   position: absolute;
@@ -700,7 +688,6 @@ input[type=range]::-moz-range-thumb {
     <div id="media-area">
       <video id="video-el" preload="auto" playsinline webkit-playsinline></video>
       <canvas id="canvas-el"></canvas>
-      <div id="yt-container"></div>
       <div class="frame-overlay" id="frame-overlay">FRAME 0 / 0 &nbsp;|&nbsp; 0.000s</div>
     </div>
 
@@ -934,145 +921,9 @@ function loadFromHistory(id) {
   else if (item.file) { loadFile(item.file, false); }
 }
 
-// ─── YouTube IFrame API ──────────────────────────────────────────────────────
-let ytPlayer        = null;
-let ytPollInterval  = null;
-let ytApiLoading    = false;
-let ytApiCallbacks  = [];
-
-function loadYouTubeAPI() {
-  if (window.YT && window.YT.Player) return Promise.resolve();
-  return new Promise(resolve => {
-    ytApiCallbacks.push(resolve);
-    if (!ytApiLoading) {
-      ytApiLoading = true;
-      const s = document.createElement('script');
-      s.src = 'https://www.youtube.com/iframe_api';
-      document.head.appendChild(s);
-    }
-  });
-}
-
-window.onYouTubeIframeAPIReady = function () {
-  ytApiCallbacks.forEach(fn => fn());
-  ytApiCallbacks = [];
-};
-
-function extractYouTubeId(url) {
-  const m = url.match(
-    /(?:youtube\.com\/(?:watch\?(?:.*&)?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/
-  );
-  return m ? m[1] : null;
-}
-
-function startYtPoll() {
-  stopYtPoll();
-  ytPollInterval = setInterval(() => {
-    if (!ytPlayer || state.mode !== 'youtube') { stopYtPoll(); return; }
-    const t = ytPlayer.getCurrentTime() || 0;
-    state.currentFrame = Math.min(state.totalFrames - 1, Math.round(t * state.fps));
-    // out-point enforcement
-    if (state.playing && state.currentFrame >= state.outFrame) {
-      if (state.loop) {
-        ytPlayer.seekTo(state.inFrame / state.fps, true);
-      } else {
-        ytPlayer.pauseVideo();
-        state.playing = false;
-        state.currentFrame = state.outFrame;
-        stopYtPoll();
-      }
-    }
-    updateUI();
-  }, 100);
-}
-
-function stopYtPoll() {
-  if (ytPollInterval) { clearInterval(ytPollInterval); ytPollInterval = null; }
-}
-
-function seekYouTube(t) {
-  if (!ytPlayer) return;
-  const clamped = Math.max(0, t);
-  ytPlayer.seekTo(clamped, true);
-  state.currentFrame = Math.min(state.totalFrames - 1, Math.round(clamped * state.fps));
-  updateUI();
-}
-
-async function loadYouTube(videoId, originalUrl, track = true) {
-  stopPlayback();
-  state.gifFrames = [];
-  state.playing = false;
-  state.currentFrame = 0;
-  state.totalFrames = 0;
-  state.playbackFps = null;
-
-  dropZone.style.display = 'none';
-  playerWrap.style.display = 'flex';
-  setActiveSpeed(null);
-  gifNotice.classList.remove('show');
-  typeBadge.textContent = 'YT';
-  fpsDisplay.textContent = '~30';
-  resDisplay.textContent = '—';
-  fileDisplay.textContent = videoId;
-  fileNameEl.textContent = videoId;
-
-  const ytContainer = document.getElementById('yt-container');
-  canvasEl.style.display = 'none';
-  videoEl.style.display = 'none';
-  ytContainer.style.display = 'block';
-  ytContainer.innerHTML = '<div id="yt-player-inner"></div>';
-
-  if (track) addToHistory(videoId, 'YT', originalUrl, null);
-
-  await loadYouTubeAPI();
-
-  state.mode = 'youtube';
-  state.fps = 30;
-
-  if (ytPlayer) { try { ytPlayer.destroy(); } catch (e) {} ytPlayer = null; }
-
-  ytPlayer = new YT.Player('yt-player-inner', {
-    videoId,
-    playerVars: { autoplay: 0, rel: 0, modestbranding: 1, enablejsapi: 1 },
-    events: {
-      onReady: () => {
-        const dur = ytPlayer.getDuration() || 0;
-        state.totalFrames = Math.max(1, Math.round(dur * state.fps));
-        state.inFrame  = 0;
-        state.outFrame = state.totalFrames - 1;
-        durationLabel.textContent = formatTime(dur);
-        const data = ytPlayer.getVideoData() || {};
-        const title = (data.title || videoId).slice(0, 40);
-        fileDisplay.textContent = title;
-        fileNameEl.textContent = title;
-        const entry = sessionHistory.find(h => h.url === originalUrl);
-        if (entry) { entry.name = title; renderHistory(); }
-        updateUI();
-      },
-      onStateChange: (ev) => {
-        if (ev.data === YT.PlayerState.PLAYING) {
-          state.playing = true;
-          startYtPoll();
-          updateUI();
-        } else if (ev.data === YT.PlayerState.PAUSED || ev.data === YT.PlayerState.ENDED) {
-          const wasPlaying = state.playing;
-          state.playing = false;
-          stopYtPoll();
-          if (ev.data === YT.PlayerState.ENDED && wasPlaying && state.loop) {
-            ytPlayer.seekTo(state.inFrame / state.fps, true);
-            ytPlayer.playVideo();
-          } else {
-            updateUI();
-          }
-        }
-      }
-    }
-  });
-}
-
 // ─── State ────────────────────────────────────────────────────────────────
 const state = {
-  mode: null,          // 'video' | 'gif' | 'youtube'
+  mode: null,          // 'video' | 'gif'
   fps: 30,
   totalFrames: 0,
   currentFrame: 0,
@@ -1119,8 +970,6 @@ function updateUI() {
     t = videoEl.currentTime;
   } else if (state.mode === 'gif' && state.fps > 0) {
     t = f / state.fps;
-  } else if (state.mode === 'youtube' && state.fps > 0) {
-    try { t = ytPlayer ? ytPlayer.getCurrentTime() || 0 : f / state.fps; } catch (e) { t = f / state.fps; }
   }
 
   timeLabel.textContent = formatTime(t);
@@ -1168,12 +1017,7 @@ function updateLoopBtn() {
 function seekFrameKeepPlaying(f) {
   if (!state.playing) {
     if (state.mode === 'video') seekVideoFrame(f);
-    else if (state.mode === 'youtube') seekYouTube(f / state.fps);
     else seekGifToFrame(f);
-    return;
-  }
-  if (state.mode === 'youtube') {
-    seekYouTube(f / state.fps);
     return;
   }
   if (state.mode === 'video' && state.playbackFps === null) {
@@ -1198,7 +1042,6 @@ function stopPlayback() {
   state.intervalId = null;
   state.gifAnimTimer = null;
   if (state.mode === 'video') videoEl.pause();
-  if (state.mode === 'youtube') { try { ytPlayer && ytPlayer.pauseVideo(); } catch (e) {} stopYtPoll(); }
   updateUI();
 }
 
@@ -1207,17 +1050,9 @@ function startPlayback() {
   if (state.currentFrame < state.inFrame || state.currentFrame > state.outFrame) {
     state.currentFrame = state.inFrame;
     if (state.mode === 'video') videoEl.currentTime = state.inFrame / state.fps;
-    if (state.mode === 'youtube') { try { ytPlayer && ytPlayer.seekTo(state.inFrame / state.fps, true); } catch (e) {} }
   }
   state.playing = true;
   state.playSession = (state.playSession || 0) + 1;
-
-  if (state.mode === 'youtube') {
-    try { ytPlayer && ytPlayer.playVideo(); } catch (e) {}
-    // poll started by onStateChange; also start here in case API fires before our handler
-    startYtPoll();
-    return;
-  }
 
   if (state.mode === 'video') {
     if (state.playbackFps === null) {
@@ -1377,8 +1212,6 @@ function drawVideoFrameToCanvas() {
 
 // ─── Video ─────────────────────────────────────────────────────────────────
 function initVideo(src, name) {
-  document.getElementById('yt-container').style.display = 'none';
-  if (ytPlayer) { try { ytPlayer.destroy(); } catch (e) {} ytPlayer = null; }
   state.mode = 'video';
   state.fps = 30;
 
@@ -1448,8 +1281,6 @@ function seekVideoFrame(f) {
 
 // ─── GIF ───────────────────────────────────────────────────────────────────
 function setupGifState(frames, width, height, name) {
-  document.getElementById('yt-container').style.display = 'none';
-  if (ytPlayer) { try { ytPlayer.destroy(); } catch (e) {} ytPlayer = null; }
   state.gifFrames = frames;
   state.gifWidth  = width;
   state.gifHeight = height;
@@ -1700,10 +1531,6 @@ async function loadFromUrl(raw, track = true) {
   const url = raw.trim();
   if (!url) return;
 
-  // YouTube detection — hand off to dedicated loader
-  const ytId = extractYouTubeId(url);
-  if (ytId) { loadYouTube(ytId, url, track); return; }
-
   stopPlayback();
   state.gifFrames = [];
   state.playing = false;
@@ -1818,7 +1645,6 @@ playBtn.addEventListener('click', () => {
   } else {
     if (state.currentFrame >= state.totalFrames - 1) {
       if (state.mode === 'video') seekVideoFrame(0);
-      else if (state.mode === 'youtube') seekYouTube(0);
       else seekGifToFrame(0);
     }
     startPlayback();
@@ -1830,7 +1656,6 @@ firstBtn.addEventListener('click', () => {
   if (!state.mode) return;
   stopPlayback();
   if (state.mode === 'video') seekVideoFrame(0);
-  else if (state.mode === 'youtube') seekYouTube(0);
   else seekGifToFrame(0);
 });
 
@@ -1838,7 +1663,6 @@ lastBtn.addEventListener('click', () => {
   if (!state.mode) return;
   stopPlayback();
   if (state.mode === 'video') seekVideoFrame(state.totalFrames - 1);
-  else if (state.mode === 'youtube') seekYouTube((state.totalFrames - 1) / state.fps);
   else seekGifToFrame(state.totalFrames - 1);
 });
 
@@ -1858,9 +1682,6 @@ videoEl.muted = state.muted;
 muteBtn.addEventListener('click', () => {
   state.muted = !state.muted;
   videoEl.muted = state.muted;
-  if (state.mode === 'youtube' && ytPlayer) {
-    try { state.muted ? ytPlayer.mute() : ytPlayer.unMute(); } catch (e) {}
-  }
   muteBtn.textContent = state.muted ? '🔇' : '🔊';
 });
 
@@ -1879,7 +1700,6 @@ progressBar.addEventListener('input', () => {
   const pct = state.totalFrames > 1 ? (f / (state.totalFrames - 1)) * 100 : 0;
   scrubFill.style.width = pct + '%';
   if (state.mode === 'video') seekVideoFrame(f);
-  else if (state.mode === 'youtube') seekYouTube(f / state.fps);
   else seekGifToFrame(f);
 });
 
@@ -1968,16 +1788,8 @@ addDragScrub(outFrameInput,
 // Speed buttons
 speedBtns.forEach(btn => {
   btn.addEventListener('click', () => {
-    const val = btn.dataset.fps;
-    if (state.mode === 'youtube') {
-      // Map fixed-fps labels to YouTube playback rates
-      const rateMap = { normal: 1, '15': 0.75, '5': 0.5, '1': 0.25 };
-      const rate = rateMap[val] ?? 1;
-      try { ytPlayer && ytPlayer.setPlaybackRate(rate); } catch (e) {}
-      setActiveSpeed(val === 'normal' ? null : Number(val));
-      return;
-    }
     videoEl.playbackRate = 1;
+    const val = btn.dataset.fps;
     state.playbackFps = val === 'normal' ? null : Number(val);
     setActiveSpeed(state.playbackFps);
     if (state.playing) {
