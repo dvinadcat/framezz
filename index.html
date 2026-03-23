@@ -693,6 +693,29 @@ function updateLoopBtn() {
 }
 
 // ─── Playback core ─────────────────────────────────────────────────────────
+
+// Seek to frame f. If currently playing, restart playback from that position.
+function seekFrameKeepPlaying(f) {
+  if (!state.playing) {
+    if (state.mode === 'video') seekVideoFrame(f);
+    else seekGifToFrame(f);
+    return;
+  }
+  if (state.mode === 'video' && state.playbackFps === null) {
+    // Native playback: update currentTime directly; the browser keeps playing
+    state.currentFrame = f;
+    videoEl.currentTime = f / state.fps;
+    updateUI();
+  } else {
+    // Fixed-FPS video or GIF: restart loop from new position
+    stopPlayback();
+    state.currentFrame = f;
+    if (state.mode === 'video') seekVideoFrame(f);
+    else seekGifToFrame(f);
+    startPlayback();
+  }
+}
+
 function stopPlayback() {
   state.playing = false;
   clearInterval(state.intervalId);
@@ -1254,18 +1277,12 @@ lastBtn.addEventListener('click', () => {
 
 prevBtn.addEventListener('click', () => {
   if (!state.mode) return;
-  stopPlayback();
-  const f = Math.max(0, state.currentFrame - 1);
-  if (state.mode === 'video') seekVideoFrame(f);
-  else seekGifToFrame(f);
+  seekFrameKeepPlaying(Math.max(0, state.currentFrame - 1));
 });
 
 nextBtn.addEventListener('click', () => {
   if (!state.mode) return;
-  stopPlayback();
-  const f = Math.min(state.totalFrames - 1, state.currentFrame + 1);
-  if (state.mode === 'video') seekVideoFrame(f);
-  else renderGifFrame(f); // fast path: +1 forward
+  seekFrameKeepPlaying(Math.min(state.totalFrames - 1, state.currentFrame + 1));
 });
 
 
@@ -1332,18 +1349,14 @@ document.addEventListener('keydown', e => {
       e.preventDefault();
       if (e.shiftKey) {
         if (!state.mode) break;
-        stopPlayback();
-        const fb = Math.max(0, state.currentFrame - 10);
-        if (state.mode === 'video') seekVideoFrame(fb); else seekGifToFrame(fb);
+        seekFrameKeepPlaying(Math.max(0, state.currentFrame - 10));
       } else prevBtn.click();
       break;
     case 'ArrowRight':
       e.preventDefault();
       if (e.shiftKey) {
         if (!state.mode) break;
-        stopPlayback();
-        const ff = Math.min(state.totalFrames - 1, state.currentFrame + 10);
-        if (state.mode === 'video') seekVideoFrame(ff); else seekGifToFrame(ff);
+        seekFrameKeepPlaying(Math.min(state.totalFrames - 1, state.currentFrame + 10));
       } else nextBtn.click();
       break;
     case 'Home':
