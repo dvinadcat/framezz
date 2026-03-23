@@ -290,6 +290,32 @@ body {
   transform: translateY(-50%) translateX(-100%);
   clip-path: polygon(100% 0, 45% 0, 0 50%, 45% 100%, 100% 100%);
 }
+.range-row {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.range-row-spacer { flex: 1; }
+.range-label {
+  font-size: 0.55rem;
+  color: var(--accent2);
+  letter-spacing: 0.15em;
+}
+.frame-num-input {
+  font-family: 'Share Tech Mono', monospace;
+  font-size: 0.65rem;
+  background: #1a1a1a;
+  border: 1px solid var(--accent2);
+  color: var(--accent2);
+  padding: 2px 5px;
+  width: 62px;
+  text-align: center;
+  outline: none;
+  -moz-appearance: textfield;
+}
+.frame-num-input::-webkit-inner-spin-button,
+.frame-num-input::-webkit-outer-spin-button { -webkit-appearance: none; }
+.frame-num-input:focus { background: #1a0800; }
 input[type=range] {
   -webkit-appearance: none;
   appearance: none;
@@ -555,6 +581,15 @@ input[type=range]::-moz-range-thumb {
         <span class="time-label time-label-right" id="duration-label">00:00.000</span>
       </div>
 
+      <!-- In/Out frame inputs -->
+      <div class="range-row">
+        <span class="range-label">IN</span>
+        <input type="number" id="in-frame-input" class="frame-num-input" min="0" value="0">
+        <div class="range-row-spacer"></div>
+        <input type="number" id="out-frame-input" class="frame-num-input" min="0" value="0">
+        <span class="range-label">OUT</span>
+      </div>
+
       <!-- Main buttons -->
       <div class="btn-row">
         <button class="btn" id="first-btn">|&lt; FIRST</button>
@@ -656,6 +691,8 @@ const inHandle      = document.getElementById('in-handle');
 const outHandle     = document.getElementById('out-handle');
 const rangeFill     = document.getElementById('range-fill');
 const scrubTrackWrapper = document.querySelector('.scrub-track-wrapper');
+const inFrameInput  = document.getElementById('in-frame-input');
+const outFrameInput = document.getElementById('out-frame-input');
 
 // ─── State ────────────────────────────────────────────────────────────────
 const state = {
@@ -736,6 +773,9 @@ function updateRangeHandles() {
   outHandle.style.left = outPct + '%';
   rangeFill.style.left  = inPct  + '%';
   rangeFill.style.width = (outPct - inPct) + '%';
+  // Sync number inputs (don't update while the user is actively typing)
+  if (document.activeElement !== inFrameInput)  inFrameInput.value  = state.inFrame;
+  if (document.activeElement !== outFrameInput) outFrameInput.value = state.outFrame;
 }
 
 function updateLoopBtn() {
@@ -784,44 +824,49 @@ function startPlayback() {
   if (state.mode === 'video') {
     if (state.playbackFps === null) {
       const session = state.playSession;
-      const drawLoop = () => {
-        if (!state.playing || state.playSession !== session || state.playbackFps !== null) return;
+      const alive   = () => state.playing && state.playSession === session && state.playbackFps === null;
+
+      // Single per-frame loop: draw + out-point enforcement.
+      // requestVideoFrameCallback fires once per rendered frame, giving
+      // frame-accurate out-point detection. timeupdate fallback is used
+      // when rVFC is unavailable (fires less often but still enforces range).
+      const frameLoop = () => {
+        if (!alive()) return;
         drawVideoFrameToCanvas();
-        if (videoEl.requestVideoFrameCallback) {
-          videoEl.requestVideoFrameCallback(drawLoop);
-        }
-      };
-      if (videoEl.requestVideoFrameCallback) {
-        videoEl.requestVideoFrameCallback(drawLoop);
-      } else {
-        // Fallback: timeupdate handler already calls updateUI; add a draw on timeupdate
-        const tu = () => {
-          if (!state.playing || state.playSession !== session || state.playbackFps !== null) {
-            videoEl.removeEventListener('timeupdate', tu);
-            return;
-          }
-          drawVideoFrameToCanvas();
-        };
-        videoEl.addEventListener('timeupdate', tu);
-      }
-      // Enforce out-point during native playback
-      const rangeCheck = () => {
-        if (!state.playing || state.playSession !== session || state.playbackFps !== null) {
-          videoEl.removeEventListener('timeupdate', rangeCheck);
-          return;
-        }
-        if (videoEl.currentTime >= (state.outFrame + 1) / state.fps) {
-          videoEl.removeEventListener('timeupdate', rangeCheck);
+        const curFrame = Math.round(videoEl.currentTime * state.fps);
+        if (curFrame >= state.outFrame) {
           if (state.loop) {
             videoEl.currentTime = state.inFrame / state.fps;
             videoEl.play().catch(() => {});
+            if (videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(frameLoop);
           } else {
             stopPlayback();
             seekVideoFrame(state.outFrame);
           }
+          return;
         }
+        if (videoEl.requestVideoFrameCallback) videoEl.requestVideoFrameCallback(frameLoop);
       };
-      videoEl.addEventListener('timeupdate', rangeCheck);
+
+      if (videoEl.requestVideoFrameCallback) {
+        videoEl.requestVideoFrameCallback(frameLoop);
+      } else {
+        const tu = () => {
+          if (!alive()) { videoEl.removeEventListener('timeupdate', tu); return; }
+          drawVideoFrameToCanvas();
+          if (Math.round(videoEl.currentTime * state.fps) >= state.outFrame) {
+            videoEl.removeEventListener('timeupdate', tu);
+            if (state.loop) {
+              videoEl.currentTime = state.inFrame / state.fps;
+              videoEl.play().catch(() => {});
+            } else {
+              stopPlayback();
+              seekVideoFrame(state.outFrame);
+            }
+          }
+        };
+        videoEl.addEventListener('timeupdate', tu);
+      }
       videoEl.play().catch(() => {});
     } else {
       // Use seeked-event-driven approach: wait for each seek to complete
@@ -836,9 +881,10 @@ function startPlayback() {
       const step = () => {
         if (!alive()) return;
 
-        const seekTarget = state.currentFrame / state.fps + 1 / state.fps;
-        const rangeEnd = (state.outFrame + 1) / state.fps;
-        if (seekTarget >= Math.min(videoEl.duration, rangeEnd)) {
+        const nextFrame  = state.currentFrame + 1;
+        const seekTarget = nextFrame / state.fps;
+        // Use integer comparison for out-point (no float drift)
+        if (nextFrame > state.outFrame || seekTarget >= videoEl.duration) {
           if (state.loop) {
             // Update currentFrame synchronously before the seek so state
             // stays in sync with the video element even if playback stops
@@ -1402,6 +1448,24 @@ document.addEventListener('mousemove', e => { if (draggingHandle) handleDragMove
 document.addEventListener('touchmove', e => { if (draggingHandle) handleDragMove(e.touches[0].clientX); }, { passive: true });
 document.addEventListener('mouseup',  () => { draggingHandle = null; });
 document.addEventListener('touchend', () => { draggingHandle = null; });
+
+// In/Out frame number inputs
+function commitInFrame() {
+  if (!state.mode) return;
+  const v = parseInt(inFrameInput.value);
+  state.inFrame = isNaN(v) ? state.inFrame : Math.max(0, Math.min(v, state.outFrame - 1));
+  updateRangeHandles();
+}
+function commitOutFrame() {
+  if (!state.mode) return;
+  const v = parseInt(outFrameInput.value);
+  state.outFrame = isNaN(v) ? state.outFrame : Math.max(state.inFrame + 1, Math.min(v, state.totalFrames - 1));
+  updateRangeHandles();
+}
+inFrameInput.addEventListener('change', commitInFrame);
+inFrameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { commitInFrame(); inFrameInput.blur(); } });
+outFrameInput.addEventListener('change', commitOutFrame);
+outFrameInput.addEventListener('keydown', e => { if (e.key === 'Enter') { commitOutFrame(); outFrameInput.blur(); } });
 
 // Speed buttons
 speedBtns.forEach(btn => {
