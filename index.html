@@ -709,6 +709,27 @@ function startPlayback() {
 
   if (state.mode === 'video') {
     if (state.playbackFps === null) {
+      const session = state.playSession;
+      const drawLoop = () => {
+        if (!state.playing || state.playSession !== session || state.playbackFps !== null) return;
+        drawVideoFrameToCanvas();
+        if (videoEl.requestVideoFrameCallback) {
+          videoEl.requestVideoFrameCallback(drawLoop);
+        }
+      };
+      if (videoEl.requestVideoFrameCallback) {
+        videoEl.requestVideoFrameCallback(drawLoop);
+      } else {
+        // Fallback: timeupdate handler already calls updateUI; add a draw on timeupdate
+        const tu = () => {
+          if (!state.playing || state.playSession !== session || state.playbackFps !== null) {
+            videoEl.removeEventListener('timeupdate', tu);
+            return;
+          }
+          drawVideoFrameToCanvas();
+        };
+        videoEl.addEventListener('timeupdate', tu);
+      }
       videoEl.play().catch(() => {});
     } else {
       // Use seeked-event-driven approach: wait for each seek to complete
@@ -734,6 +755,7 @@ function startPlayback() {
             nextFrameAt = performance.now() + frameInterval;
             videoEl.addEventListener('seeked', () => {
               if (!alive()) return;
+              drawVideoFrameToCanvas();
               state.intervalId = setTimeout(step, Math.max(0, nextFrameAt - performance.now()));
             }, { once: true });
             videoEl.pause();
@@ -753,6 +775,7 @@ function startPlayback() {
         nextFrameAt += frameInterval;
         videoEl.addEventListener('seeked', () => {
           if (!alive()) return;
+          drawVideoFrameToCanvas();
           state.intervalId = setTimeout(step, Math.max(0, nextFrameAt - performance.now()));
         }, { once: true });
       };
@@ -808,6 +831,13 @@ function scheduleGifFrame() {
   }, ms);
 }
 
+// ─── Video canvas rendering ─────────────────────────────────────────────────
+function drawVideoFrameToCanvas() {
+  if (canvasEl.width && canvasEl.height) {
+    canvasEl.getContext('2d').drawImage(videoEl, 0, 0, canvasEl.width, canvasEl.height);
+  }
+}
+
 // ─── Video ─────────────────────────────────────────────────────────────────
 function initVideo(src, name) {
   state.mode = 'video';
@@ -815,8 +845,8 @@ function initVideo(src, name) {
 
   videoEl.src = src;
   videoEl.load();
-  videoEl.style.display = 'block';
-  canvasEl.style.display = 'none';
+  videoEl.style.display = 'none';  // canvas is the visible display
+  canvasEl.style.display = 'block';
 
   const ext = name.split('.').pop().split('?')[0].toUpperCase().slice(0, 4);
   typeBadge.textContent = ext || 'VID';
@@ -830,6 +860,10 @@ function initVideo(src, name) {
     state.currentFrame = 0;
     durationLabel.textContent = formatTime(videoEl.duration);
     resDisplay.textContent = `${videoEl.videoWidth}×${videoEl.videoHeight}`;
+    canvasEl.width = videoEl.videoWidth;
+    canvasEl.height = videoEl.videoHeight;
+    // Draw first frame when the video element has data ready
+    videoEl.addEventListener('seeked', drawVideoFrameToCanvas, { once: true });
     updateUI();
   }, { once: true });
 
@@ -857,13 +891,14 @@ function initVideo(src, name) {
 }
 
 function seekVideoToTime(t) {
-  videoEl.pause();
-  videoEl.currentTime = Math.max(0, Math.min(videoEl.duration || 0, t));
-  state.currentFrame = Math.min(
-    state.totalFrames - 1,
-    Math.round(videoEl.currentTime * state.fps)
-  );
+  if (!videoEl.paused) videoEl.pause();
+  const clamped = Math.max(0, Math.min(videoEl.duration || 0, t));
+  videoEl.currentTime = clamped;
+  state.currentFrame = Math.min(state.totalFrames - 1, Math.round(clamped * state.fps));
   updateUI();
+  // Draw the new frame to canvas as soon as the browser has decoded it;
+  // until then, the canvas keeps showing the previous frame (no blank flash).
+  videoEl.addEventListener('seeked', drawVideoFrameToCanvas, { once: true });
 }
 
 function seekVideoFrame(f) {
