@@ -146,32 +146,96 @@ body {
 
 #top-bar {
   display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 12px;
+  align-items: stretch;
   background: var(--panel);
   border: 1px solid var(--border);
   border-bottom: none;
+  position: relative;
+  min-height: 30px;
 }
-#file-name {
-  font-size: 0.65rem;
-  color: var(--dim);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+#history-list {
   flex: 1;
-  letter-spacing: 0.1em;
+  display: flex;
+  gap: 3px;
+  align-items: center;
+  overflow-x: auto;
+  padding: 4px 6px;
+  scrollbar-width: none;
 }
-#type-badge {
+#history-list::-webkit-scrollbar { display: none; }
+.history-chip {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  white-space: nowrap;
+  font-size: 0.58rem;
+  color: var(--dim);
+  flex-shrink: 0;
+  letter-spacing: 0.05em;
+  transition: border-color 0.1s, color 0.1s;
+}
+.history-chip:hover { border-color: #444; color: var(--text); }
+.history-chip.active { border-color: var(--accent); color: var(--accent); }
+.chip-ext {
   font-family: 'Barlow Condensed', sans-serif;
   font-weight: 700;
-  font-size: 0.6rem;
-  letter-spacing: 0.2em;
+  font-size: 0.5rem;
+  letter-spacing: 0.15em;
   color: var(--accent2);
-  padding: 2px 7px;
   border: 1px solid var(--accent2);
-  white-space: nowrap;
+  padding: 0px 3px;
+  line-height: 1.4;
 }
+.history-chip.active .chip-ext { opacity: 0.8; }
+#add-media-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  color: var(--accent);
+  font-size: 1.1rem;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  line-height: 1;
+}
+#add-media-btn:hover { background: rgba(232,255,0,0.05); }
+#add-flyout {
+  display: none;
+  position: absolute;
+  top: calc(100% + 1px);
+  right: 0;
+  z-index: 200;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  gap: 5px;
+  flex-direction: row;
+  align-items: center;
+  min-width: 300px;
+}
+#add-flyout.visible { display: flex; }
+#flyout-url-input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 4px 7px;
+  font-family: inherit;
+  font-size: 0.62rem;
+  outline: none;
+  min-width: 0;
+}
+#flyout-url-input:focus { border-color: var(--accent); }
+#flyout-url-input::placeholder { color: var(--dim); }
+/* keep these accessible to JS but invisible */
+#file-name, #type-badge { display: none; }
 
 #media-area {
   position: relative;
@@ -552,8 +616,15 @@ input[type=range]::-moz-range-thumb {
   <!-- Player -->
   <div id="player-wrapper">
     <div id="top-bar">
-      <div id="file-name">—</div>
-      <div id="type-badge">MP4</div>
+      <div id="history-list"></div>
+      <button id="add-media-btn" title="Add media (or paste URL with Ctrl+V)">+</button>
+      <div id="add-flyout">
+        <input type="text" id="flyout-url-input" placeholder="paste url…" autocomplete="off" spellcheck="false">
+        <label for="file-input" class="btn" id="flyout-file-btn">FILE</label>
+      </div>
+      <!-- kept for JS refs -->
+      <div id="file-name" style="display:none">—</div>
+      <div id="type-badge" style="display:none">MP4</div>
     </div>
 
     <div id="media-area">
@@ -599,7 +670,7 @@ input[type=range]::-moz-range-thumb {
         <div class="btn-spacer"></div>
         <button class="btn" id="mute-btn">🔇</button>
         <button class="btn" id="loop-btn">∞ LOOP</button>
-        <button class="btn danger" id="open-new-btn">LOAD NEW</button>
+        <button class="btn danger" id="open-new-btn" style="display:none">LOAD NEW</button>
       </div>
 
       <!-- Speed + info -->
@@ -694,6 +765,57 @@ const rangeFill     = document.getElementById('range-fill');
 const scrubTrackWrapper = document.querySelector('.scrub-track-wrapper');
 const inFrameInput  = document.getElementById('in-frame-input');
 const outFrameInput = document.getElementById('out-frame-input');
+const historyListEl = document.getElementById('history-list');
+const addMediaBtn   = document.getElementById('add-media-btn');
+const addFlyout     = document.getElementById('add-flyout');
+const flyoutUrlInput = document.getElementById('flyout-url-input');
+
+// ─── Session history ────────────────────────────────────────────────────────
+const sessionHistory = [];   // [{id, name, ext, url, file}]
+let   historyIdSeq   = 0;
+let   activeHistoryId = -1;
+
+function renderHistory() {
+  historyListEl.innerHTML = '';
+  sessionHistory.forEach(item => {
+    const chip = document.createElement('div');
+    chip.className = 'history-chip' + (item.id === activeHistoryId ? ' active' : '');
+    chip.dataset.id = item.id;
+    const nameSpan = document.createElement('span');
+    nameSpan.textContent = item.name;
+    const extSpan = document.createElement('span');
+    extSpan.className = 'chip-ext';
+    extSpan.textContent = item.ext;
+    chip.appendChild(nameSpan);
+    chip.appendChild(extSpan);
+    chip.addEventListener('click', () => loadFromHistory(item.id));
+    historyListEl.appendChild(chip);
+  });
+  // scroll active chip into view
+  const active = historyListEl.querySelector('.history-chip.active');
+  if (active) active.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+}
+
+function addToHistory(name, ext, url, file) {
+  // avoid duplicate URLs
+  if (url) {
+    const dup = sessionHistory.find(h => h.url === url);
+    if (dup) { activeHistoryId = dup.id; renderHistory(); return; }
+  }
+  const id = historyIdSeq++;
+  sessionHistory.push({ id, name, ext, url: url || null, file: file || null });
+  activeHistoryId = id;
+  renderHistory();
+}
+
+function loadFromHistory(id) {
+  const item = sessionHistory.find(h => h.id === id);
+  if (!item) return;
+  activeHistoryId = id;
+  renderHistory();
+  if (item.url)  { loadFromUrl(item.url, false); }
+  else if (item.file) { loadFile(item.file, false); }
+}
 
 // ─── State ────────────────────────────────────────────────────────────────
 const state = {
@@ -1263,7 +1385,7 @@ function lzwDecode(minSize, data, count) {
 }
 
 // ─── File loading ──────────────────────────────────────────────────────────
-function loadFile(file) {
+function loadFile(file, track = true) {
   if (!file) return;
   stopPlayback();
 
@@ -1288,6 +1410,11 @@ function loadFile(file) {
   state.playbackFps = null;
   setActiveSpeed(null);
 
+  if (track) {
+    const ext = isGif ? 'GIF' : file.name.split('.').pop().toUpperCase().slice(0, 4) || 'VID';
+    addToHistory(file.name, ext, null, file);
+  }
+
   if (isGif) initGif(file);
   else {
     if (state.objectUrl) URL.revokeObjectURL(state.objectUrl);
@@ -1296,7 +1423,7 @@ function loadFile(file) {
   }
 }
 
-async function loadFromUrl(raw) {
+async function loadFromUrl(raw, track = true) {
   const url = raw.trim();
   if (!url) return;
 
@@ -1314,6 +1441,11 @@ async function loadFromUrl(raw) {
   playerWrap.style.display = 'flex';
   state.playbackFps = null;
   setActiveSpeed(null);
+
+  if (track) {
+    const ext = isGif ? 'GIF' : url.split('.').pop().split('?')[0].toUpperCase().slice(0, 4) || 'URL';
+    addToHistory(name, ext, url, null);
+  }
 
   if (isGif) {
     loading.classList.add('visible');
@@ -1340,7 +1472,7 @@ async function loadFromUrl(raw) {
 // ─── Event listeners ───────────────────────────────────────────────────────
 
 // File input / drop zone
-fileInput.addEventListener('change', e => loadFile(e.target.files[0]));
+fileInput.addEventListener('change', e => { closeFlyout(); loadFile(e.target.files[0]); });
 // File picker is opened via <label for="file-input"> — works on iOS Safari
 
 // URL input
@@ -1363,14 +1495,42 @@ dropZone.addEventListener('drop', e => {
   loadFile(e.dataTransfer.files[0]);
 });
 
-// Load new
-openNewBtn.addEventListener('click', () => {
-  stopPlayback();
-  playerWrap.style.display = 'none';
-  dropZone.style.display = 'flex';
-  fileInput.value = '';
-  state.mode = null;
-  state.gifFrames = [];
+// Load new (legacy hidden button — no-op kept for safety)
+openNewBtn.addEventListener('click', () => {});
+
+// ─── Add media (+) button and flyout ────────────────────────────────────────
+function closeFlyout() {
+  addFlyout.classList.remove('visible');
+  flyoutUrlInput.value = '';
+}
+addMediaBtn.addEventListener('click', e => {
+  e.stopPropagation();
+  addFlyout.classList.toggle('visible');
+  if (addFlyout.classList.contains('visible')) flyoutUrlInput.focus();
+});
+flyoutUrlInput.addEventListener('keydown', e => {
+  e.stopPropagation();
+  if (e.key === 'Enter') {
+    const v = flyoutUrlInput.value.trim();
+    if (v) { closeFlyout(); loadFromUrl(v); }
+  }
+  if (e.key === 'Escape') closeFlyout();
+});
+flyoutUrlInput.addEventListener('click', e => e.stopPropagation());
+document.addEventListener('click', e => {
+  if (!addFlyout.contains(e.target) && e.target !== addMediaBtn) closeFlyout();
+});
+
+// ─── Global Ctrl+V → load URL from clipboard ────────────────────────────────
+document.addEventListener('paste', async e => {
+  const active = document.activeElement;
+  const inInput = active && (active.tagName === 'INPUT' || active.tagName === 'TEXTAREA');
+  if (inInput) return; // let normal paste work in inputs
+  const text = e.clipboardData?.getData('text/plain')?.trim();
+  if (text && /^https?:\/\//i.test(text)) {
+    closeFlyout();
+    loadFromUrl(text);
+  }
 });
 
 // Play / Pause
