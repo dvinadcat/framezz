@@ -1549,6 +1549,8 @@ customFpsInput.addEventListener('keydown', e => {
   e.stopPropagation(); // don't trigger keyboard shortcuts
   if (e.key === 'Enter') { customFpsInput.blur(); applyCustomFps(); }
 });
+customFpsInput.addEventListener('change', applyCustomFps);
+customFpsInput.addEventListener('blur', applyCustomFps);
 customFpsInput.addEventListener('click', e => e.stopPropagation());
 
 // Keyboard shortcuts
