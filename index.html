@@ -705,6 +705,7 @@ function stopPlayback() {
 
 function startPlayback() {
   state.playing = true;
+  state.playSession = (state.playSession || 0) + 1;
 
   if (state.mode === 'video') {
     if (state.playbackFps === null) {
@@ -713,25 +714,26 @@ function startPlayback() {
       // Use seeked-event-driven approach: wait for each seek to complete
       // before scheduling the next, so we never read stale currentTime.
       videoEl.pause();
+      const session = state.playSession;
       const frameInterval = 1000 / state.playbackFps;
       let nextFrameAt = performance.now() + frameInterval;
-      let seekedHandler = null;
+
+      const alive = () => state.playing && state.playSession === session;
 
       const step = () => {
-        if (!state.playing) return;
+        if (!alive()) return;
 
         const seekTarget = state.currentFrame / state.fps + 1 / state.fps;
         if (seekTarget >= videoEl.duration) {
           if (state.loop) {
             // Attach seeked BEFORE setting currentTime to avoid missing the event
             nextFrameAt = performance.now() + frameInterval;
-            seekedHandler = () => {
-              if (!state.playing) return;
+            videoEl.addEventListener('seeked', () => {
+              if (!alive()) return;
               state.currentFrame = 0;
               updateUI();
               state.intervalId = setTimeout(step, Math.max(0, nextFrameAt - performance.now()));
-            };
-            videoEl.addEventListener('seeked', seekedHandler, { once: true });
+            }, { once: true });
             videoEl.pause();
             videoEl.currentTime = 0;
           } else {
@@ -747,11 +749,10 @@ function startPlayback() {
         updateUI();
 
         nextFrameAt += frameInterval;
-        seekedHandler = () => {
-          if (!state.playing) return;
+        videoEl.addEventListener('seeked', () => {
+          if (!alive()) return;
           state.intervalId = setTimeout(step, Math.max(0, nextFrameAt - performance.now()));
-        };
-        videoEl.addEventListener('seeked', seekedHandler, { once: true });
+        }, { once: true });
       };
 
       state.intervalId = setTimeout(step, frameInterval);
