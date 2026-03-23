@@ -190,6 +190,23 @@ body {
   line-height: 1.4;
 }
 .history-chip.active .chip-ext { opacity: 0.8; }
+.chip-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-left: 2px;
+  width: 12px;
+  height: 12px;
+  font-size: 0.65rem;
+  line-height: 1;
+  color: var(--dim);
+  opacity: 0;
+  transition: opacity 0.1s, color 0.1s;
+  flex-shrink: 0;
+}
+.history-chip:hover .chip-remove { opacity: 1; }
+.history-chip.active .chip-remove { opacity: 0.5; }
+.history-chip:hover .chip-remove:hover { color: var(--accent2); opacity: 1; }
 #add-media-btn {
   display: flex;
   align-items: center;
@@ -786,8 +803,20 @@ function renderHistory() {
     const extSpan = document.createElement('span');
     extSpan.className = 'chip-ext';
     extSpan.textContent = item.ext;
+    const removeBtn = document.createElement('span');
+    removeBtn.className = 'chip-remove';
+    removeBtn.textContent = '−';
+    removeBtn.title = 'Remove from history';
+    removeBtn.addEventListener('click', e => {
+      e.stopPropagation();
+      const idx = sessionHistory.findIndex(h => h.id === item.id);
+      if (idx !== -1) sessionHistory.splice(idx, 1);
+      if (activeHistoryId === item.id) activeHistoryId = sessionHistory.length ? sessionHistory[sessionHistory.length - 1].id : -1;
+      renderHistory();
+    });
     chip.appendChild(nameSpan);
     chip.appendChild(extSpan);
+    chip.appendChild(removeBtn);
     chip.addEventListener('click', () => loadFromHistory(item.id));
     historyListEl.appendChild(chip);
   });
