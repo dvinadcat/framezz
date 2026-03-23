@@ -598,7 +598,7 @@ input[type=range]::-moz-range-thumb {
         <button class="btn" id="last-btn">LAST &gt;|</button>
         <div class="btn-spacer"></div>
         <button class="btn" id="mute-btn">🔇</button>
-        <button class="btn" id="loop-btn">~ LOOP</button>
+        <button class="btn" id="loop-btn">∞ LOOP</button>
         <button class="btn danger" id="open-new-btn">LOAD NEW</button>
       </div>
 
@@ -782,7 +782,7 @@ function updateRangeHandles() {
 
 function updateLoopBtn() {
   loopBtn.classList.toggle('loop-active', state.loop);
-  loopBtn.textContent = state.loop ? '~ LOOP ON' : '~ LOOP';
+  loopBtn.textContent = state.loop ? '∞ LOOP ON' : '∞ LOOP';
 }
 
 // ─── Playback core ─────────────────────────────────────────────────────────
