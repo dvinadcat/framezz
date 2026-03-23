@@ -1543,7 +1543,11 @@ customFpsInput.addEventListener('click', e => e.stopPropagation());
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
   if (!state.mode) return;
-  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') {
+    // Allow space/k play-pause even when a frame-number input is focused
+    if (e.key !== ' ' && e.key !== 'k') return;
+    e.target.blur();
+  }
 
   switch (e.key) {
     case ' ':
