@@ -275,18 +275,32 @@ body {
 .range-handle {
   position: absolute;
   top: 50%;
-  width: 4px;
-  height: 22px;
+  width: 5px;
+  height: 26px;
   cursor: ew-resize;
   z-index: 2;
   touch-action: none;
   background: var(--accent2);
 }
+.range-handle::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  width: 12px;
+  height: 5px;
+  background: var(--accent2);
+}
 .in-handle {
   transform: translateY(-50%);
 }
+.in-handle::before {
+  left: 0;
+}
 .out-handle {
   transform: translateY(-50%) translateX(-100%);
+}
+.out-handle::before {
+  right: 0;
 }
 .range-row {
   display: flex;
