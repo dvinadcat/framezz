@@ -726,12 +726,14 @@ function startPlayback() {
         const seekTarget = state.currentFrame / state.fps + 1 / state.fps;
         if (seekTarget >= videoEl.duration) {
           if (state.loop) {
-            // Attach seeked BEFORE setting currentTime to avoid missing the event
+            // Update currentFrame synchronously before the seek so state
+            // stays in sync with the video element even if playback stops
+            // before the async seeked event fires.
+            state.currentFrame = 0;
+            updateUI();
             nextFrameAt = performance.now() + frameInterval;
             videoEl.addEventListener('seeked', () => {
               if (!alive()) return;
-              state.currentFrame = 0;
-              updateUI();
               state.intervalId = setTimeout(step, Math.max(0, nextFrameAt - performance.now()));
             }, { once: true });
             videoEl.pause();
