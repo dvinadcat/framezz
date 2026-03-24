@@ -621,6 +621,23 @@ input[type=range]::-moz-range-thumb {
 }
 @keyframes spin { to { transform: rotate(360deg); } }
 
+/* ── Fullscreen ── */
+#media-area:fullscreen,
+#media-area:-webkit-full-screen {
+  max-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+}
+#media-area:fullscreen #video-el,
+#media-area:-webkit-full-screen #video-el,
+#media-area:fullscreen #canvas-el,
+#media-area:-webkit-full-screen #canvas-el {
+  max-height: 100vh;
+  max-width: 100vw;
+}
+
 /* ── Toast ── */
 #toast {
   position: fixed;
@@ -728,6 +745,7 @@ input[type=range]::-moz-range-thumb {
         <div class="btn-spacer"></div>
         <button class="btn" id="mute-btn">🔇</button>
         <button class="btn" id="loop-btn">∞ LOOP</button>
+        <button class="btn" id="fullscreen-btn" title="Fullscreen (F)">⛶ FS</button>
         <button class="btn danger" id="open-new-btn" style="display:none">LOAD NEW</button>
       </div>
 
@@ -769,6 +787,7 @@ input[type=range]::-moz-range-thumb {
         <span class="hint"><kbd>Home</kbd><kbd>End</kbd> first/last</span>
         <span class="hint"><kbd>I</kbd> set in &nbsp;<kbd>O</kbd> set out</span>
         <span class="hint"><kbd>L</kbd> loop toggle</span>
+        <span class="hint"><kbd>F</kbd> fullscreen</span>
       </div>
     </div>
   </div>
@@ -1833,6 +1852,29 @@ customFpsInput.addEventListener('change', applyCustomFps);
 customFpsInput.addEventListener('blur', applyCustomFps);
 customFpsInput.addEventListener('click', e => e.stopPropagation());
 
+// ─── Fullscreen ─────────────────────────────────────────────────────────────
+const fullscreenBtn = document.getElementById('fullscreen-btn');
+const mediaArea     = document.getElementById('media-area');
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+    if (mediaArea.requestFullscreen) mediaArea.requestFullscreen();
+    else if (mediaArea.webkitRequestFullscreen) mediaArea.webkitRequestFullscreen();
+  } else {
+    if (document.exitFullscreen) document.exitFullscreen();
+    else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+  }
+}
+
+function updateFullscreenBtn() {
+  const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement);
+  fullscreenBtn.textContent = isFs ? '✕ FS' : '⛶ FS';
+}
+
+fullscreenBtn.addEventListener('click', toggleFullscreen);
+document.addEventListener('fullscreenchange', updateFullscreenBtn);
+document.addEventListener('webkitfullscreenchange', updateFullscreenBtn);
+
 // Keyboard shortcuts
 document.addEventListener('keydown', e => {
   if (!state.mode) return;
@@ -1883,6 +1925,10 @@ document.addEventListener('keydown', e => {
       if (!state.mode) break;
       state.outFrame = Math.max(state.currentFrame, state.inFrame + 1);
       updateRangeHandles();
+      break;
+    case 'f':
+    case 'F':
+      toggleFullscreen();
       break;
   }
 });
